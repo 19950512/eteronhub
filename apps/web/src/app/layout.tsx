@@ -1,4 +1,7 @@
 import type { ReactNode } from "react";
+import { Header } from "../components/header";
+import { AuthProvider } from "../lib/auth/auth-context";
+import "./globals.css";
 
 export const metadata = {
   title: "EteronHub",
@@ -7,7 +10,14 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>
+          <Header />
+          <main className="main">
+            <div className="container">{children}</div>
+          </main>
+        </AuthProvider>
+      </body>
     </html>
   );
 }
