@@ -1,202 +1,214 @@
-# Arquitetura Técnica — EteronHub
-
-Este documento descreve como o modelo de domínio de [02-modelo-de-dominio.md](02-modelo-de-dominio.md) é implementado: stack, camadas e regra de dependência, estrutura de pastas do monorepo, a integração direta com a API Pix do Banco Inter, e os contratos de API expostos ao frontend.
+# Eteron Hub — Arquitetura Técnica
 
 ## 1. Stack
 
 | Camada | Tecnologia |
 |---|---|
-| Backend | NestJS (TypeScript) |
-| ORM / banco | Prisma + PostgreSQL |
-| Frontend | Next.js (App Router, TypeScript, React) |
-| Autenticação | JWT (empresa/trabalhador), sessão separada para admin |
-| Monorepo | pnpm workspaces |
-| Testes | Jest — testes unitários para Domain/Application (sem mocks de banco), testes de integração para Infra (contra um Postgres real, via Testcontainers ou banco de teste dedicado) |
-| Agendamento de jobs | `@nestjs/schedule` (`@Cron`) |
+| Backend | Node.js + **NestJS** (TypeScript) |
+| Frontend (web público: empresa + trabalhador + admin) | **Next.js** (React, TypeScript) |
+| Banco de dados | PostgreSQL |
+| ORM | Prisma |
+| Autenticação | JWT (access + refresh token), guards por role (`COMPANY`, `WORKER`, `ADMIN`) |
+| Fila/Jobs agendados | `@nestjs/schedule` (cron) para expiração de vagas e cobranças Pix; considerar BullMQ + Redis se o volume de jobs assíncronos crescer |
+| Pagamento | API do Banco Inter (Pix — cobrança imediata + webhook de confirmação), integração direta via porta `PixPaymentGateway` |
+| Infra/Deploy | Docker + docker-compose para dev; a definir provedor de hospedagem (Railway/AWS/Fly.io) |
+| Testes | Jest (unit — Domain/Application isolados de framework; integração — casos de uso com repositórios reais/testcontainers) |
 
-Não há gateway de pagamento terceirizado (Stripe, PagSeguro, etc.): a integração com o Pix é feita **diretamente** com a API do Banco Inter. Essa decisão de infraestrutura fica isolada detrás da porta `PixPaymentGateway` (definida no módulo `payment`, ver seção 4), então trocar ou adicionar um provedor no futuro é uma mudança de Infra, não de domínio.
+Justificativa do NestJS: seu módulo de DI nativo mapeia quase 1:1 para a camada
+**Container** da Clean Architecture (cada `*.module.ts` é o ponto onde interfaces de
+domínio são amarradas às implementações de infra via `providers`).
 
-## 2. Camadas e regra de dependência
-
-Cada módulo de negócio (`company`, `worker`, `job-posting`, `moderation`, `credit`, `payment`, `job-unlock`, `admin`) é dividido internamente em quatro camadas:
-
-| Camada | Conteúdo | Pode depender de |
-|---|---|---|
-| **Domain** | Entidades, value objects, erros de domínio (ex.: `InsufficientCreditsError`). Nenhuma referência a NestJS, Prisma, HTTP ou qualquer biblioteca externa. | nada (nem de outra camada) |
-| **Application** | Casos de uso (use cases/services) e as **portas** (interfaces) que eles precisam: repositórios (`CompanyRepository`), gateways (`PixPaymentGateway`) e a `UnitOfWork`. | Domain |
-| **Infra** | Implementações concretas das portas: repositórios Prisma, o adapter `BancoInterPixGateway`, o `PrismaUnitOfWork`, jobs agendados. | Application, Domain |
-| **Container** | Módulos NestJS (`@Module`), controllers HTTP, DTOs de entrada/saída, guards, decorators. É a única camada que sabe que o transporte é HTTP e que a Infra usa Prisma — faz a fiação (DI) entre a interface de porta e sua implementação concreta. | Application (para chamar casos de uso), Infra (apenas para registrar os providers concretos no `Module`) |
-
-Regra de dependência (seta = "depende de", sempre em direção ao centro):
+## 2. Camadas (Clean Architecture)
 
 ```
-Container ──▶ Infra ──▶ Application ──▶ Domain
-     └───────────────────────▶ (Container também depende de Application diretamente)
+┌─────────────────────────────────────────────────────────┐
+│ Container (NestJS Modules)                               │
+│  - Wiring de DI: liga portas (interfaces) às implementações│
+│  - Controllers HTTP, Guards, Pipes, Filters                │
+├─────────────────────────────────────────────────────────┤
+│ Infra                                                     │
+│  - Persistência (Prisma repositories)                    │
+│  - Gateways externos (BancoInterPixGateway)               │
+│  - Serviços técnicos (JwtTokenService, BcryptHasher)      │
+├─────────────────────────────────────────────────────────┤
+│ Application                                               │
+│  - Use Cases (orquestram Domain + Portas)                 │
+│  - DTOs de entrada/saída                                  │
+├─────────────────────────────────────────────────────────┤
+│ Domain                                                    │
+│  - Entities, Value Objects, Aggregate Roots               │
+│  - Regras de negócio e invariantes                        │
+│  - Interfaces de repositório/gateway (portas)              │
+│  - Erros de domínio                                        │
+│  - ZERO dependência de framework, HTTP ou banco            │
+└─────────────────────────────────────────────────────────┘
 ```
 
-Nenhuma classe de Domain ou Application importa `@nestjs/*`, `@prisma/client` ou `fetch`/`axios`. Isso é o que permite testar 100% das regras de negócio (as 27 regras do documento 1) com testes unitários puros, sem subir banco nem framework.
+Regra de dependência: **as setas de import só apontam para dentro.** Domain não conhece
+Application; Application não conhece Infra nem Container; Infra implementa interfaces
+definidas no Domain/Application; Container conhece todo mundo (é o único lugar
+permitido a fazer o "new" das implementações concretas e injetá-las).
 
-## 3. Estrutura de pastas do monorepo
+## 3. Estrutura de Pastas Proposta (monorepo)
 
 ```
 eteronhub/
 ├── apps/
-│   ├── api/                                  # NestJS
-│   │   └── src/
-│   │       ├── modules/
-│   │       │   ├── company/
-│   │       │   │   ├── domain/
-│   │       │   │   │   ├── company.entity.ts
-│   │       │   │   │   ├── company-status.vo.ts
-│   │       │   │   │   └── errors/
-│   │       │   │   ├── application/
-│   │       │   │   │   ├── use-cases/
-│   │       │   │   │   │   ├── register-company.use-case.ts
-│   │       │   │   │   │   ├── suspend-company.use-case.ts
-│   │       │   │   │   │   └── reactivate-company.use-case.ts
-│   │       │   │   │   └── ports/
-│   │       │   │   │       └── company-repository.port.ts
-│   │       │   │   ├── infra/
-│   │       │   │   │   └── persistence/prisma-company.repository.ts
-│   │       │   │   ├── company.controller.ts        # Container
-│   │       │   │   └── company.module.ts             # Container
-│   │       │   ├── worker/                            # mesma estrutura de company/
-│   │       │   ├── job-posting/                        # mesma estrutura
-│   │       │   ├── moderation/                          # mesma estrutura
-│   │       │   ├── credit/                               # mesma estrutura
-│   │       │   ├── payment/
-│   │       │   │   ├── domain/
-│   │       │   │   │   ├── payment.entity.ts
-│   │       │   │   │   └── credit-package.entity.ts
-│   │       │   │   ├── application/
-│   │       │   │   │   ├── use-cases/
-│   │       │   │   │   │   ├── create-pix-charge.use-case.ts
-│   │       │   │   │   │   ├── confirm-payment.use-case.ts
-│   │       │   │   │   │   ├── expire-pending-payments.use-case.ts
-│   │       │   │   │   │   └── reconcile-payments.use-case.ts
-│   │       │   │   │   └── ports/
-│   │       │   │   │       ├── payment-repository.port.ts
-│   │       │   │   │       ├── credit-package-repository.port.ts
-│   │       │   │   │       └── pix-payment-gateway.port.ts
-│   │       │   │   ├── infra/
-│   │       │   │   │   ├── persistence/prisma-payment.repository.ts
-│   │       │   │   │   ├── pix/
-│   │       │   │   │   │   ├── banco-inter-auth.service.ts     # OAuth2 + mTLS
-│   │       │   │   │   │   └── banco-inter-pix.gateway.ts      # implementa PixPaymentGateway
-│   │       │   │   │   └── jobs/
-│   │       │   │   │       ├── expire-pending-payments.job.ts
-│   │       │   │   │       └── reconcile-payments.job.ts
-│   │       │   │   ├── payment-webhook.controller.ts   # recebe webhook do Banco Inter
-│   │       │   │   ├── payment.controller.ts
-│   │       │   │   └── payment.module.ts
-│   │       │   ├── job-unlock/                          # mesma estrutura
-│   │       │   └── admin/                                # mesma estrutura
-│   │       ├── shared-kernel/
-│   │       │   └── domain/                    # CNPJ, CPF, Email, Money, CreditAmount...
-│   │       ├── infra/
-│   │       │   └── prisma/
-│   │       │       ├── prisma.service.ts
-│   │       │       └── prisma-unit-of-work.ts  # implementa UnitOfWork
-│   │       ├── app.module.ts
-│   │       └── main.ts
-│   └── web/                                   # Next.js
+│   ├── api/                              # Backend NestJS
+│   │   ├── src/
+│   │   │   ├── modules/
+│   │   │   │   ├── company/
+│   │   │   │   │   ├── domain/
+│   │   │   │   │   │   ├── entities/company.entity.ts
+│   │   │   │   │   │   ├── value-objects/cnpj.vo.ts
+│   │   │   │   │   │   ├── repositories/company.repository.ts   (interface/porta)
+│   │   │   │   │   │   └── errors/
+│   │   │   │   │   ├── application/
+│   │   │   │   │   │   ├── use-cases/register-company.use-case.ts
+│   │   │   │   │   │   └── dtos/
+│   │   │   │   │   ├── infra/
+│   │   │   │   │   │   ├── persistence/prisma-company.repository.ts
+│   │   │   │   │   │   ├── http/company.controller.ts
+│   │   │   │   │   │   └── mappers/company.mapper.ts
+│   │   │   │   │   └── company.module.ts                        (Container)
+│   │   │   │   ├── worker/            (mesma estrutura)
+│   │   │   │   ├── job-posting/       (mesma estrutura)
+│   │   │   │   ├── moderation/        (mesma estrutura)
+│   │   │   │   ├── credit/            (mesma estrutura)
+│   │   │   │   ├── job-unlock/        (mesma estrutura)
+│   │   │   │   ├── payment/
+│   │   │   │   │   ├── domain/repositories/pix-charge.repository.ts
+│   │   │   │   │   ├── domain/gateways/pix-payment.gateway.ts    (porta)
+│   │   │   │   │   ├── application/use-cases/
+│   │   │   │   │   ├── infra/gateways/banco-inter/
+│   │   │   │   │   │   ├── banco-inter-pix.gateway.ts
+│   │   │   │   │   │   ├── banco-inter-auth.client.ts  (OAuth2 + mTLS)
+│   │   │   │   │   │   └── banco-inter-webhook.controller.ts
+│   │   │   │   │   └── payment.module.ts
+│   │   │   │   ├── auth/              (login, JWT, guards por role)
+│   │   │   │   ├── admin/             (dashboard, métricas)
+│   │   │   │   └── platform-settings/
+│   │   │   ├── shared/
+│   │   │   │   ├── domain/            (Entity, ValueObject, AggregateRoot base classes)
+│   │   │   │   ├── application/       (UseCase<Input, Output> interface, Result/Either)
+│   │   │   │   └── infra/             (PrismaModule, LoggerModule, ConfigModule, filters globais)
+│   │   │   ├── app.module.ts
+│   │   │   └── main.ts
+│   │   ├── prisma/schema.prisma
+│   │   └── test/
+│   └── web/                               # Next.js (empresa + trabalhador + admin)
 │       └── src/
 │           ├── app/
-│           │   ├── (public)/vagas/
-│           │   ├── (worker)/painel/
-│           │   ├── (company)/empresa/
-│           │   └── (admin)/admin/
-│           └── lib/
-│               └── api-client/                # cliente HTTP tipado para a API
-├── packages/
-│   ├── shared-types/                          # DTOs/contratos compartilhados api <-> web
-│   └── config/                                # eslint/tsconfig compartilhados
-├── prisma/
-│   └── schema.prisma
+│           │   ├── (public)/vagas/            # listagem/detalhe de vagas (anonimizado)
+│           │   ├── (empresa)/empresa/         # cadastro, dashboard, minhas vagas
+│           │   ├── (trabalhador)/trabalhador/ # cadastro, carteira, vagas desbloqueadas
+│           │   └── (admin)/admin/             # moderação, financeiro, configurações
+│           ├── components/
+│           ├── lib/api-client/                # client tipado consumindo a API NestJS
+│           └── ...
 ├── docs/
-├── package.json
-└── pnpm-workspace.yaml
+├── docker-compose.yml
+└── README.md
 ```
 
-Cada módulo replica a mesma estrutura interna (`domain/ application/ infra/`), o que torna o mapa de dependências entre módulos (documento 2, seção 11) fácil de auditar: basta olhar quais `ports` de outros módulos aparecem nos `use-cases` de um módulo.
+Observação: `web` concentra as três áreas (empresa/trabalhador/admin) com rotas
+protegidas por papel — reduz complexidade operacional do MVP frente a 3 apps
+separados. Pode ser splitado depois se o admin crescer muito.
 
-## 4. Integração Pix — Banco Inter
+## 4. Container: exemplo de módulo NestJS
 
-Sem gateway terceirizado: a API de Pix do Banco Inter exige **OAuth2 (client credentials)** combinado com **mTLS** (certificado cliente emitido no Internet Banking / portal de desenvolvedores do Inter). Toda a complexidade fica isolada em `apps/api/src/modules/payment/infra/pix/`.
+```ts
+// modules/job-unlock/job-unlock.module.ts
+@Module({
+  imports: [PrismaModule, CreditModule, JobPostingModule],
+  controllers: [JobUnlockController],
+  providers: [
+    UnlockJobPostingUseCase,
+    { provide: JOB_UNLOCK_REPOSITORY, useClass: PrismaJobUnlockRepository },
+  ],
+  exports: [UnlockJobPostingUseCase],
+})
+export class JobUnlockModule {}
+```
 
-### 4.1 Autenticação (`BancoInterAuthService`)
-- Mantém um `https.Agent` configurado com o certificado e a chave privada (mTLS) — o mesmo agente é usado tanto para obter o token OAuth2 quanto para chamar os endpoints de Pix.
-- `POST /oauth/v2/token` (client_credentials) com `client_id`/`client_secret` + escopos necessários (`cob.write`, `cob.read`, `webhook.write`, `webhook.read`, `pix.read`).
-- Cacheia o access token em memória e renova antes da expiração (tokens do Inter duram ~1h). Se uma chamada retornar 401, força renovação e tenta novamente uma vez.
+Portas usam **injection tokens** (`Symbol` ou `InjectionToken`) para não vazar
+dependência do NestJS para dentro do Domain — a interface do repositório continua um
+`interface` TypeScript puro em `domain/repositories/`.
 
-### 4.2 Criação de cobrança (`BancoInterPixGateway.createCharge`)
-- Implementa a porta `PixPaymentGateway` (documento 2, seção 7).
-- `PUT /pix/v2/cob/{txid}` (cobrança imediata) com `valor`, `chave` (chave Pix cadastrada da EteronHub), `expiracao` e `solicitacaoPagador`. O `txid` é gerado pela nossa aplicação (não pelo Inter) a partir do `PaymentId`, o que evita uma chamada extra e facilita correlação.
-- A resposta contém o payload `pixCopiaECola`; o QR code (imagem) é gerado **localmente** a partir desse payload (biblioteca de QR code), sem chamada adicional ao Inter.
+## 5. Integração Banco Inter (Pix) — detalhes técnicos
 
-### 4.3 Webhook (`payment-webhook.controller.ts`)
-- Endpoint público `POST /webhooks/banco-inter/pix`, registrado uma única vez via setup administrativo (`PUT /pix/v2/webhook/{chave}` na API do Inter), fora do fluxo de requisição normal.
-- O Inter envia um array de eventos `pix` recebidos, cada um com `txid`, `endToEndId` e `valor`.
-- Validação de origem: a chamada chega apenas pela mesma conexão mTLS configurada no lado do Inter (certificado do webhook); adicionalmente, o handler ignora qualquer evento cujo `txid` não corresponda a um `Payment` conhecido.
-- Para cada evento, o controller **apenas traduz o payload** e delega para `ConfirmPaymentUseCase.execute({ pixTxId, e2eId })` (Application) — nenhuma regra de negócio vive no controller.
-- `ConfirmPaymentUseCase` é idempotente (documento 2, seção 7, regra 17): se o `Payment` já está `CONFIRMED`, a segunda notificação do mesmo evento é um no-op. Isso cobre o caso comum de o Inter reenviar a mesma notificação por falta de ACK a tempo.
+- Autenticação: OAuth2 client credentials + certificado mTLS (exigido pela API do
+  Banco Inter) — client dedicado (`BancoInterAuthClient`) cuida de obter/renovar token.
+- Criação de cobrança: endpoint de **Pix cobrança imediata**, retorna `txid`, payload
+  EMV (copia e cola) e imagem do QR Code (base64).
+- Confirmação: Banco Inter envia **webhook** para uma URL pública configurada
+  previamente no dia a dia da conta — endpoint dedicado
+  (`POST /webhooks/banco-inter/pix`), fora de guards de JWT (autenticidade validada por
+  outro mecanismo: IP allowlist e/ou validação de payload conforme doc do banco).
+- Idempotência: `ConfirmPixPaymentUseCase` busca `PixCharge` por `externalTxId`; se
+  `status !== PENDING`, retorna sem reprocessar.
+- Fallback: job agendado (`GetChargeStatus` via API, não só webhook) para reconciliar
+  cobranças que ficaram `PENDING` além do esperado — evita depender 100% da entrega do
+  webhook.
+- Segredos (certificado, client id/secret) via variáveis de ambiente / secret manager,
+  nunca commitados.
 
-### 4.4 Job de reconciliação (`reconcile-payments.job.ts`)
-- `@Cron` a cada poucos minutos.
-- Busca (`PaymentRepository.findPendingOlderThan`) pagamentos ainda `PENDING` com mais de N minutos.
-- Para cada um, chama `PixPaymentGateway.getChargeStatus(pixTxId)`. Se o status retornado pelo Inter for `CONCLUIDA`, chama `ConfirmPaymentUseCase` do mesmo jeito que o webhook chamaria.
-- Isso torna o fluxo de créditos resiliente a falhas de entrega do webhook (rede, timeout, deploy no meio da notificação) sem exigir nenhuma ação do trabalhador.
+## 6. Contratos de API (REST) — visão geral dos principais endpoints
 
-### 4.5 Job de expiração (`expire-pending-payments.job.ts`)
-- `@Cron`, busca `Payment`s `PENDING` com `expiresAt` no passado e chama `ExpirePendingPaymentsUseCase` (regra 19 do documento 1).
+### Auth
+- `POST /auth/company/register`
+- `POST /auth/company/login`
+- `POST /auth/worker/register`
+- `POST /auth/worker/login`
+- `POST /auth/admin/login`
+- `POST /auth/refresh`
 
-## 5. Contratos de API
+### Empresa
+- `GET /companies/me`
+- `PATCH /companies/me`
+- `POST /job-postings` (cria em `DRAFT`)
+- `PATCH /job-postings/:id`
+- `POST /job-postings/:id/submit` (envia para moderação)
+- `POST /job-postings/:id/close`
+- `GET /job-postings/me` (todas as vagas da empresa logada, com status)
 
-Convenções gerais:
-- Todas as rotas autenticadas usam `Authorization: Bearer <jwt>`.
-- Vagas anonimizadas nunca incluem `companyId`, razão social ou `contactInfo` no payload de resposta — a anonimização (documento 2, seção 4, `toAnonymizedView()`) acontece no Application, então não há risco de o controller "esquecer" de esconder um campo sensível.
-- Erros de domínio são mapeados para status HTTP no Container (ex.: `InsufficientCreditsError` → `402 Payment Required`; erro de transição de estado inválida em `JobPosting` → `409 Conflict`; entidade não encontrada → `404`).
+### Trabalhador
+- `GET /job-postings/public` (listagem anonimizada, filtros: categoria, cidade, UF)
+- `GET /job-postings/public/:id`
+- `GET /wallet/me`
+- `GET /wallet/me/transactions`
+- `GET /credit-packages`
+- `POST /credit-packages/:id/purchase` → cria `PixCharge`, retorna QR Code
+- `GET /pix-charges/:id/status` (polling opcional além do webhook)
+- `POST /job-postings/:id/unlock` → retorna dados de contato da empresa
+- `GET /job-unlocks/me`
 
-### Público
-| Método | Rota | Descrição |
-|---|---|---|
-| POST | `/companies` | Cadastro de empresa (CNPJ). |
-| POST | `/workers` | Cadastro de trabalhador (CPF). |
-| POST | `/auth/login` | Login de empresa ou trabalhador, retorna JWT. |
-| GET | `/job-postings` | Lista vagas publicadas, anonimizadas, com filtros (localização, faixa salarial). |
-| GET | `/job-postings/:id` | Detalhe de uma vaga — anonimizado, ou completo se o trabalhador autenticado já a desbloqueou. |
-| GET | `/credit-packages` | Catálogo de pacotes de créditos disponíveis. |
+### Webhook (público, sem JWT)
+- `POST /webhooks/banco-inter/pix`
 
-### Empresa (JWT de empresa)
-| Método | Rota | Descrição |
-|---|---|---|
-| POST | `/companies/me/job-postings` | Cria vaga em `DRAFT`. |
-| PATCH | `/companies/me/job-postings/:id` | Edita vaga em `DRAFT`. |
-| POST | `/companies/me/job-postings/:id/submit` | Submete para moderação. |
-| POST | `/companies/me/job-postings/:id/close` | Encerra vaga publicada. |
-| GET | `/companies/me/job-postings` | Lista vagas da própria empresa, em qualquer status. |
+### Admin
+- `GET /admin/moderation-queue`
+- `POST /admin/job-postings/:id/approve`
+- `POST /admin/job-postings/:id/reject` `{ reason }`
+- `POST /admin/job-postings/:id/suspend` `{ reason }`
+- `GET /admin/companies`
+- `POST /admin/companies/:id/suspend`
+- `GET /admin/credit-packages` / `POST` / `PATCH`
+- `GET /admin/metrics/revenue`
+- `GET /admin/metrics/moderation`
+- `GET /admin/metrics/unlock-conversion`
 
-### Trabalhador (JWT de trabalhador)
-| Método | Rota | Descrição |
-|---|---|---|
-| GET | `/workers/me/credit-wallet` | Saldo atual de créditos. |
-| POST | `/workers/me/payments` | Cria cobrança Pix para um pacote de créditos (retorna `pixCopiaECola` + QR code). |
-| GET | `/workers/me/payments/:id` | Status do pagamento (para a página de checkout fazer polling até `CONFIRMED`). |
-| POST | `/workers/me/job-postings/:id/unlock` | Desbloqueia a vaga (idempotente — repetir a chamada após sucesso não cobra de novo). |
-| GET | `/workers/me/job-unlocks` | Histórico de vagas desbloqueadas. |
-
-### Admin (sessão de admin)
-| Método | Rota | Descrição |
-|---|---|---|
-| POST | `/admin/auth/login` | Login de admin, retorna JWT (sessão separada da de empresa/trabalhador). |
-| GET | `/admin/me` | Perfil do admin autenticado. |
-| GET | `/admin/moderation/pending` | Lista vagas em `IN_MODERATION`. |
-| POST | `/admin/moderation/:jobPostingId/approve` | Aprova e publica a vaga. |
-| POST | `/admin/moderation/:jobPostingId/reject` | Rejeita a vaga (`reason` obrigatório no body). |
-| POST | `/admin/companies/:id/suspend` / `/reactivate` | Suspende/reativa empresa. |
-| POST | `/admin/workers/:id/suspend` / `/reactivate` | Suspende/reativa trabalhador. |
-
-### Integração externa (Banco Inter → EteronHub)
-| Método | Rota | Descrição |
-|---|---|---|
-| POST | `/webhooks/banco-inter/pix` | Notificação de Pix recebido. Não é chamada pelo frontend; documentada aqui por ser parte do contrato de API do sistema. |
+## 7. Requisitos Não-Funcionais
+- **LGPD**: CPF/CNPJ e dados de contato são dados pessoais/sensíveis — criptografia em
+  trânsito (HTTPS obrigatório), controle de acesso rígido (dados de empresa só
+  aparecem completos após unlock pago; nunca logar CPF/CNPJ em plaintext em logs de
+  aplicação).
+- **Auditoria**: toda decisão de moderação e toda transação financeira é imutável
+  (append-only).
+- **Consistência financeira**: confirmação de pagamento e débito de créditos sempre
+  dentro de transação de banco (Prisma `$transaction`), nunca em duas escritas
+  separadas sem lock.
+- **Observabilidade**: logs estruturados (JSON), correlação por request-id;
+  monitoramento de falhas de webhook do Banco Inter (alerta se taxa de erro subir).
+- **Escalabilidade**: stateless na API (sessões via JWT, não sticky session) para
+  permitir múltiplas instâncias atrás de um load balancer.

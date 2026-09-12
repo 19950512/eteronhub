@@ -1,315 +1,323 @@
-# Modelo de Domínio — EteronHub
+# Eteron Hub — Modelo de Domínio
 
-Este documento detalha o modelo de domínio derivado das regras descritas em [01-produto-e-regras-de-negocio.md](01-produto-e-regras-de-negocio.md), organizado por módulo (bounded context). Cada módulo lista suas **entidades**, **value objects**, o **agregado raiz**, os **casos de uso** (application services) e as **portas** (interfaces que o Domain/Application definem e a Infra implementa).
+Este documento define as entidades, value objects, agregados e casos de uso que compõem
+as camadas **Domain** e **Application** da Clean Architecture, organizados por bounded
+context (módulo).
 
-Convenção: portas são descritas como interfaces TypeScript, pois a stack é NestJS (ver [03-arquitetura-tecnica.md](03-arquitetura-tecnica.md)). Nomes de métodos usam `Promise` porque toda porta de persistência/integração é assíncrona.
+Convenções:
+- **Entity**: possui identidade (id) e ciclo de vida.
+- **Value Object (VO)**: imutável, comparado por valor, autovalida invariantes na
+  construção (lança erro de domínio se inválido).
+- **Aggregate Root**: entidade que garante consistência transacional do seu cluster.
+- Toda entidade/VO fica em `domain/`, livre de qualquer dependência de framework,
+  banco ou HTTP.
 
-## 1. Value objects compartilhados
+---
 
-Vivem em um módulo `shared-kernel` (ou `common`), usados por mais de um módulo.
+## 1. Módulo `company` (Empresa)
 
-| Value Object | Descrição | Invariantes |
+### Entidade: `Company` (Aggregate Root)
+| Campo | Tipo | Observação |
 |---|---|---|
-| `CNPJ` | CNPJ de uma empresa. | 14 dígitos, dígitos verificadores válidos. Imutável. |
-| `CPF` | CPF de um trabalhador. | 11 dígitos, dígitos verificadores válidos. Imutável. |
-| `Email` | Endereço de e-mail. | Formato válido, normalizado em lowercase. |
-| `Money` | Valor monetário em BRL. | Armazenado em centavos (inteiro), nunca negativo para preços de pacotes/pagamentos. |
-| `CreditAmount` | Quantidade de créditos. | Inteiro não-negativo (créditos não são fracionários). Suporta `add`, `subtract` (lança erro de domínio se o resultado for negativo). |
-| `DateRange` / `ExpiresAt` | Data de expiração. | Sempre no futuro no momento da criação. |
+| id | UUID | |
+| corporateName (razão social) | string | |
+| tradeName (nome fantasia) | string | opcional |
+| cnpj | VO `Cnpj` | único |
+| email | VO `Email` | único |
+| phone | VO `PhoneNumber` | |
+| contactName | string | responsável pelo contato |
+| status | enum `CompanyStatus` | `PENDING_VERIFICATION`, `ACTIVE`, `SUSPENDED` |
+| passwordHash | string | |
+| createdAt / updatedAt | Date | |
 
-Cada módulo abaixo também define seus próprios *ids* fortemente tipados (ex.: `CompanyId`, `WorkerId`, `JobPostingId`) como wrappers de UUID, para evitar troca acidental de identificadores entre entidades diferentes.
+Invariantes: CNPJ válido (dígito verificador), e-mail com formato válido, empresa
+`SUSPENDED` não pode publicar novas vagas.
 
-## 2. Módulo `company`
+### Value Objects
+- `Cnpj`: valida formato e dígitos verificadores.
+- `Email`, `PhoneNumber`, `Money` (ver seção compartilhada abaixo).
 
-### Entidades
-- **Company** (agregado raiz) — `id: CompanyId`, `cnpj: CNPJ`, `razaoSocial: string`, `nomeFantasia?: string`, `email: Email`, `status: CompanyStatus`, `createdAt: Date`.
+### Casos de Uso (Application)
+- `RegisterCompanyUseCase`
+- `AuthenticateCompanyUseCase`
+- `UpdateCompanyProfileUseCase`
+- `GetCompanyProfileUseCase`
 
-### Value objects
-- `CompanyId`
-- `CompanyStatus` = `ACTIVE | SUSPENDED`
+### Porta (Repository interface)
+- `CompanyRepository`: `save`, `findById`, `findByCnpj`, `findByEmail`, `existsByCnpj`
 
-### Agregado
-`Company` é o único agregado do módulo. Regras de negócio 1 e 23 são garantidas aqui: unicidade de CNPJ (garantida na camada de aplicação/porta via `existsByCnpj`, com constraint única no banco como segunda linha de defesa) e transição de status.
+---
 
-Métodos de domínio: `suspend()`, `reactivate()` — validam transições de estado (não suspender quem já está suspenso, etc.).
+## 2. Módulo `worker` (Trabalhador)
 
-### Casos de uso
-- `RegisterCompanyUseCase` — valida CNPJ, checa duplicidade, cria `Company`.
-- `SuspendCompanyUseCase` (acionado pelo módulo `admin`) — regra 23.
-- `ReactivateCompanyUseCase`.
+### Entidade: `Worker` (Aggregate Root)
+| Campo | Tipo | Observação |
+|---|---|---|
+| id | UUID | |
+| fullName | string | |
+| cpf | VO `Cpf` | único |
+| email | VO `Email` | único |
+| phone | VO `PhoneNumber` | |
+| category (função principal) | VO `WorkerCategory` | ex.: soldador, caldeireiro |
+| passwordHash | string | |
+| createdAt / updatedAt | Date | |
 
-### Portas
-```typescript
-interface CompanyRepository {
-  save(company: Company): Promise<void>;
-  findById(id: CompanyId): Promise<Company | null>;
-  findByCnpj(cnpj: CNPJ): Promise<Company | null>;
-  existsByCnpj(cnpj: CNPJ): Promise<boolean>;
-}
-```
+Invariantes: CPF válido (dígito verificador).
 
-## 3. Módulo `worker`
+### Casos de Uso
+- `RegisterWorkerUseCase`
+- `AuthenticateWorkerUseCase`
+- `UpdateWorkerProfileUseCase`
 
-### Entidades
-- **Worker** (agregado raiz) — `id: WorkerId`, `cpf: CPF`, `nome: string`, `email: Email`, `status: WorkerStatus`, `createdAt: Date`.
+### Porta
+- `WorkerRepository`: `save`, `findById`, `findByCpf`, `findByEmail`
 
-### Value objects
-- `WorkerId`
-- `WorkerStatus` = `ACTIVE | SUSPENDED`
+---
 
-### Agregado
-`Worker` guarda apenas identidade, dados pessoais e status — **não** guarda saldo de créditos (isso é responsabilidade do módulo `credit`, que referencia `WorkerId`). Essa separação evita que o agregado `Worker` cresça para acomodar regras de concorrência sobre saldo, que têm uma cadência de mudança muito maior.
+## 3. Módulo `job-posting` (Vaga)
 
-### Casos de uso
-- `RegisterWorkerUseCase` — valida CPF, checa duplicidade, cria `Worker`.
-- `SuspendWorkerUseCase` (regra 24).
-- `ReactivateWorkerUseCase`.
+### Entidade: `JobPosting` (Aggregate Root)
+| Campo | Tipo | Observação |
+|---|---|---|
+| id | UUID | |
+| companyId | UUID | referência à empresa dona |
+| title | string | |
+| description | string | |
+| category | VO `JobCategory` | função/especialidade |
+| contractType | enum | `CLT`, `PJ`, `TEMPORARY`, `FREELANCE` |
+| location | VO `Location` (city, state) | |
+| salaryRange | VO `SalaryRange` | opcional (min/max) |
+| unlockCost | VO `CreditAmount` | custo em créditos para desbloqueio |
+| status | enum `JobPostingStatus` | ver abaixo |
+| moderatedBy | UUID (admin) | opcional |
+| moderationReason | string | opcional (motivo de rejeição/suspensão) |
+| publishedAt / expiresAt / createdAt / updatedAt | Date | |
 
-### Portas
-```typescript
-interface WorkerRepository {
-  save(worker: Worker): Promise<void>;
-  findById(id: WorkerId): Promise<Worker | null>;
-  findByCpf(cpf: CPF): Promise<Worker | null>;
-  existsByCpf(cpf: CPF): Promise<boolean>;
-}
-```
+`JobPostingStatus`: `DRAFT` → `PENDING_MODERATION` → `APPROVED` | `REJECTED`;
+`APPROVED` → `SUSPENDED` | `EXPIRED` | `CLOSED`.
 
-## 4. Módulo `job-posting`
+Regras de transição de estado vivem **dentro da entidade** (métodos como
+`submitForModeration()`, `approve(adminId)`, `reject(adminId, reason)`,
+`suspend(adminId, reason)`, `close()`, `expire()`), lançando erro de domínio se a
+transição não for permitida a partir do estado atual.
 
-### Entidades
-- **JobPosting** (agregado raiz) — `id: JobPostingId`, `companyId: CompanyId`, `title: string`, `description: string`, `requirements: string`, `salaryRange: SalaryRange`, `location: string`, `contactInfo: ContactInfo`, `unlockCost: CreditAmount`, `status: JobPostingStatus`, `rejectionReason?: string`, `publishedAt?: Date`, `expiresAt?: Date`, `createdAt: Date`.
+### Projeção pública (anonimizada)
+`PublicJobPostingView` (DTO de saída, não entidade): title, description, category,
+contractType, location, salaryRange, unlockCost, publishedAt — **sem** companyId
+exposto de forma identificável (usa um `jobPostingId` opaco).
 
-### Value objects
-- `JobPostingId`
-- `SalaryRange` — `{ min: Money; max: Money }`, com `min <= max`.
-- `ContactInfo` — dados de contato/aplicação revelados apenas após desbloqueio (e-mail, telefone, link de aplicação).
-- `JobPostingStatus` = `DRAFT | IN_MODERATION | PUBLISHED | REJECTED | CLOSED | EXPIRED`
+### Casos de Uso
+- `CreateJobPostingUseCase` (empresa)
+- `SubmitJobPostingForModerationUseCase`
+- `ListMyJobPostingsUseCase` (empresa vê status de todas as suas vagas)
+- `ListPublicJobPostingsUseCase` (trabalhador, filtros: categoria, cidade/UF)
+- `GetPublicJobPostingDetailsUseCase`
+- `CloseJobPostingUseCase` (empresa)
+- `ExpireStaleJobPostingsUseCase` (job agendado)
+- **Admin**: `ListPendingModerationUseCase`, `ApproveJobPostingUseCase`,
+  `RejectJobPostingUseCase`, `SuspendJobPostingUseCase`
 
-### Agregado
-`JobPosting` concentra a máquina de estados das regras 3–10 e 21–22:
+### Porta
+- `JobPostingRepository`
 
-```
-DRAFT --submitForModeration()--> IN_MODERATION
-IN_MODERATION --approve()--> PUBLISHED
-IN_MODERATION --reject(reason)--> REJECTED
-REJECTED --resubmit()--> IN_MODERATION
-PUBLISHED --close()--> CLOSED
-PUBLISHED --expire()--> EXPIRED   (disparado por job agendado quando now() > expiresAt)
-```
+---
 
-Cada transição inválida lança um erro de domínio (ex.: `approve()` chamado fora de `IN_MODERATION`).
+## 4. Módulo `moderation` (Auditoria)
 
-O `unlockCost` é definido na criação/edição enquanto em `DRAFT`, e a entidade expõe `lockUnlockCost()` — uma vez que a vaga é aprovada e publicada, o custo não pode mais ser alterado (regra 10). Editar uma vaga já `PUBLISHED` (exceto fechá-la) está fora do escopo do MVP.
+### Entidade: `ModerationLog`
+| Campo | Tipo |
+|---|---|
+| id | UUID |
+| jobPostingId | UUID |
+| adminId | UUID |
+| decision | enum `APPROVED`, `REJECTED`, `SUSPENDED` |
+| reason | string (opcional para aprovação, obrigatório para rejeição/suspensão) |
+| createdAt | Date |
 
-A entidade expõe duas projeções de leitura, usadas pela camada de apresentação:
-- `toAnonymizedView()` — título, descrição, requisitos, faixa salarial, localização aproximada, custo de desbloqueio. **Nunca** inclui `companyId`/nome da empresa nem `contactInfo` (regra 9).
-- `toFullView()` — inclui também a razão social da empresa (buscada via `CompanyRepository`) e `contactInfo`. Só deve ser chamada pelo caso de uso de detalhe de vaga quando já existe um `JobUnlock` para o par (worker, vaga) — ver módulo `job-unlock`.
+Registro **append-only** (nunca editado/apagado) — é o log de auditoria.
 
-### Casos de uso
-- `CreateJobPostingUseCase`
-- `SubmitJobPostingForModerationUseCase` (regras 3, 5)
-- `CloseJobPostingUseCase` (regra 22)
-- `ExpireJobPostingsUseCase` (job agendado, regra 21)
-- `ListPublicJobPostingsUseCase` — retorna apenas `PUBLISHED` e não expiradas, via `toAnonymizedView()`.
-- `GetJobPostingDetailsUseCase` — recebe `workerId` + `jobPostingId`; decide entre `toAnonymizedView()` e `toFullView()` consultando o módulo `job-unlock`.
+### Porta
+- `ModerationLogRepository`: `save`, `listByJobPosting`
 
-### Portas
-```typescript
-interface JobPostingRepository {
-  save(jobPosting: JobPosting): Promise<void>;
-  findById(id: JobPostingId): Promise<JobPosting | null>;
-  findPublished(filter: JobPostingFilter): Promise<JobPosting[]>;
-  findExpiredPublished(now: Date): Promise<JobPosting[]>;
-  findByCompany(companyId: CompanyId): Promise<JobPosting[]>;
-}
-```
+---
 
-## 5. Módulo `moderation`
+## 5. Módulo `credit` (Créditos e Carteira)
 
-### Entidades
-- **ModerationDecision** (agregado raiz) — `id: ModerationDecisionId`, `jobPostingId: JobPostingId`, `adminId: AdminId`, `decision: 'APPROVED' | 'REJECTED'`, `reason?: string`, `decidedAt: Date`.
+### Entidade: `CreditWallet` (Aggregate Root)
+| Campo | Tipo |
+|---|---|
+| id | UUID |
+| workerId | UUID (único — 1 carteira por trabalhador) |
+| balance | VO `CreditAmount` |
+| updatedAt | Date |
 
-Registro de auditoria *append-only* (regra 25) — nunca é atualizado, apenas criado.
+Regras dentro da entidade: `credit(amount)`, `debit(amount)` (lança
+`InsufficientCreditsError` se `amount > balance`). Toda alteração de saldo só acontece
+através desses métodos — nunca escrita direta.
 
-### Agregado
-`ModerationDecision` é um agregado simples e imutável. A transição de estado da vaga em si é responsabilidade do agregado `JobPosting` (módulo `job-posting`); `moderation` apenas orquestra a decisão e grava o registro de auditoria.
+### Entidade: `CreditTransaction` (registro imutável / extrato)
+| Campo | Tipo |
+|---|---|
+| id | UUID |
+| walletId | UUID |
+| type | enum `PURCHASE`, `CONSUMPTION`, `REFUND` |
+| amount | VO `CreditAmount` |
+| relatedEntityId | UUID | (pixChargeId ou jobUnlockId, conforme o tipo) |
+| createdAt | Date |
 
-### Casos de uso
-- `ListPendingModerationUseCase` — lista vagas em `IN_MODERATION`.
-- `ApproveJobPostingUseCase` — carrega `JobPosting`, chama `.approve()`, salva, grava `ModerationDecision('APPROVED')`. Transacional (ambas as escritas ocorrem juntas).
-- `RejectJobPostingUseCase` — idem, com `.reject(reason)` e `ModerationDecision('REJECTED', reason)`. `reason` é obrigatório (regra 7).
+### Entidade: `CreditPackage` (catálogo, gerenciado pelo admin)
+| Campo | Tipo |
+|---|---|
+| id | UUID |
+| name | string |
+| creditsAmount | VO `CreditAmount` |
+| price | VO `Money` |
+| active | boolean |
 
-### Portas
-```typescript
-interface ModerationDecisionRepository {
-  save(decision: ModerationDecision): Promise<void>;
-  findByJobPosting(jobPostingId: JobPostingId): Promise<ModerationDecision[]>;
-}
-```
-(Depende também de `JobPostingRepository`, do módulo `job-posting`.)
-
-## 6. Módulo `credit`
-
-### Entidades
-- **CreditWallet** (agregado raiz) — `id: CreditWalletId`, `workerId: WorkerId`, `balance: CreditAmount`, `updatedAt: Date`.
-- **CreditTransaction** — `id: CreditTransactionId`, `walletId: CreditWalletId`, `type: 'TOPUP' | 'DEBIT'`, `amount: CreditAmount`, `relatedPaymentId?: PaymentId`, `relatedJobUnlockId?: JobUnlockId`, `createdAt: Date`. Ledger imutável, usado para auditoria e para reconstituir o saldo se necessário.
-
-### Value objects
-- `CreditWalletId`, `CreditTransactionId`
-
-### Agregado
-`CreditWallet` é o agregado raiz; toda alteração de saldo passa por ele:
-- `credit(amount: CreditAmount)` — usado após confirmação de pagamento (regra 16).
-- `debit(amount: CreditAmount)` — lança erro de domínio `InsufficientCreditsError` se `amount > balance` (regras 11, 20 — saldo nunca fica negativo).
-
-Cada chamada a `credit`/`debit` deve ser acompanhada, na mesma transação de aplicação, da criação do `CreditTransaction` correspondente (o `CreditWallet` não persiste seu próprio ledger — isso é orquestrado pelo caso de uso).
-
-### Casos de uso
-- `AddCreditsUseCase` — chamado pelo módulo `payment` após confirmação de pagamento.
-- `DebitCreditsUseCase` — chamado pelo módulo `job-unlock` durante o desbloqueio.
-- `GetWalletBalanceUseCase` — leitura de saldo para exibição ao trabalhador.
-
-### Portas
-```typescript
-interface CreditWalletRepository {
-  save(wallet: CreditWallet): Promise<void>;
-  findByWorkerId(workerId: WorkerId): Promise<CreditWallet | null>;
-  getOrCreateForWorker(workerId: WorkerId): Promise<CreditWallet>;
-}
-
-interface CreditTransactionRepository {
-  save(transaction: CreditTransaction): Promise<void>;
-  findByWallet(walletId: CreditWalletId): Promise<CreditTransaction[]>;
-}
-```
-
-## 7. Módulo `payment`
-
-### Entidades
-- **CreditPackage** — catálogo estático/administrável: `id: CreditPackageId`, `name: string`, `price: Money`, `creditsAmount: CreditAmount`, `active: boolean`.
-- **Payment** (agregado raiz) — `id: PaymentId`, `workerId: WorkerId`, `creditPackageId: CreditPackageId`, `amount: Money`, `creditsAmount: CreditAmount`, `status: PaymentStatus`, `pixTxId: string`, `pixE2eId?: string`, `createdAt: Date`, `expiresAt: Date`, `confirmedAt?: Date`.
-
-### Value objects
-- `PaymentId`, `PaymentStatus` = `PENDING | CONFIRMED | EXPIRED`
-
-### Agregado
-`Payment` guarda o ciclo de vida de uma cobrança Pix (regras 15–19):
-- `confirm(e2eId: string)` — só tem efeito se `status === PENDING`; chamadas repetidas (mesmo `e2eId`) são no-op (idempotência da regra 17). Se já `CONFIRMED`, apenas retorna sem erro.
-- `expire()` — só tem efeito se `status === PENDING` e `now() > expiresAt` (regra 19).
-
-Este é o módulo que expõe a porta central de desacoplamento do domínio em relação ao provedor de pagamento:
-
-```typescript
-interface PixPaymentGateway {
-  createCharge(input: {
-    amount: Money;
-    externalReferenceId: PaymentId;
-    expiresAt: Date;
-  }): Promise<{ pixTxId: string; qrCode: string; qrCodeImageBase64: string }>;
-
-  getChargeStatus(pixTxId: string): Promise<'ATIVA' | 'CONCLUIDA' | 'REMOVIDA_PELO_USUARIO_RECEBEDOR' | 'REMOVIDA_PELO_PSP'>;
-}
-```
-
-`PixPaymentGateway` é definida no Domain/Application e implementada na Infra (ver [03-arquitetura-tecnica.md](03-arquitetura-tecnica.md)) por um adapter que fala diretamente com a API Pix do Banco Inter. Trocar o Banco Inter por outro PSP no futuro significa escrever um novo adapter, sem tocar em `Payment`, nos casos de uso ou em qualquer regra de negócio.
-
-### Casos de uso
-- `CreatePixChargeUseCase` — cria `Payment(PENDING)`, chama `PixPaymentGateway.createCharge`, persiste o `pixTxId` retornado.
-- `ConfirmPaymentUseCase` — acionado pelo webhook; localiza `Payment` pelo `pixTxId`, chama `.confirm(e2eId)`, e — se a confirmação teve efeito (não era um duplicado) — chama `AddCreditsUseCase` (módulo `credit`) na mesma transação de aplicação (ver seção 9).
-- `ExpirePendingPaymentsUseCase` — job agendado (regra 19).
-- `ReconcilePaymentsUseCase` — job agendado que consulta `PixPaymentGateway.getChargeStatus` para pagamentos `PENDING` cujo `pixTxId` já existe, cobrindo o caso de um webhook perdido (ver arquitetura, seção de reconciliação).
+### Casos de Uso
+- `GetWalletBalanceUseCase`
+- `ListCreditTransactionsUseCase`
+- `ListCreditPackagesUseCase`
+- **Admin**: `CreateCreditPackageUseCase`, `UpdateCreditPackageUseCase`,
+  `DeactivateCreditPackageUseCase`
 
 ### Portas
-```typescript
-interface PaymentRepository {
-  save(payment: Payment): Promise<void>;
-  findById(id: PaymentId): Promise<Payment | null>;
-  findByPixTxId(pixTxId: string): Promise<Payment | null>;
-  findPendingExpiredBefore(now: Date): Promise<Payment[]>;
-  findPendingOlderThan(threshold: Date): Promise<Payment[]>; // usado pela reconciliação
-}
+- `CreditWalletRepository`, `CreditTransactionRepository`, `CreditPackageRepository`
 
-interface CreditPackageRepository {
-  findActive(): Promise<CreditPackage[]>;
-  findById(id: CreditPackageId): Promise<CreditPackage | null>;
-}
-```
+---
 
-## 8. Módulo `job-unlock`
+## 6. Módulo `payment` (Pix / Banco Inter)
 
-### Entidades
-- **JobUnlock** (agregado raiz) — `id: JobUnlockId`, `workerId: WorkerId`, `jobPostingId: JobPostingId`, `creditsSpent: CreditAmount`, `unlockedAt: Date`.
+### Entidade: `PixCharge` (Aggregate Root)
+| Campo | Tipo |
+|---|---|
+| id | UUID (interno) |
+| workerId | UUID |
+| creditPackageId | UUID |
+| amount | VO `Money` |
+| creditsToGrant | VO `CreditAmount` |
+| externalTxId | string | txid retornado pelo Banco Inter |
+| qrCodeImage | string (base64) | |
+| qrCodeCopyPaste | string (payload EMV) | |
+| status | enum `PENDING`, `PAID`, `EXPIRED`, `FAILED` |
+| expiresAt | Date | |
+| paidAt | Date | opcional |
+| createdAt | Date | |
 
-### Agregado
-`JobUnlock` é um registro simples e imutável: uma vez criado, nunca é alterado (regra 27 — não há "devolução" de desbloqueio). A unicidade do par `(workerId, jobPostingId)` é uma invariante forte, garantida por constraint única no banco **e** verificada explicitamente no caso de uso antes de debitar créditos.
+Métodos de domínio: `markAsPaid()`, `markAsExpired()` — validam transição a partir de
+`PENDING` apenas.
 
-### Caso de uso central: `UnlockJobPostingUseCase`
+### Casos de Uso
+- `PurchaseCreditPackageUseCase`: cria `PixCharge` via `PixPaymentGateway` (porta) e
+  persiste.
+- `ConfirmPixPaymentUseCase`: chamado pelo webhook handler; **idempotente** via
+  `externalTxId` (se já processado, no-op); ao confirmar, credita a `CreditWallet`
+  correspondente e cria `CreditTransaction` do tipo `PURCHASE` — tudo em uma única
+  transação de banco.
+- `ExpirePendingPixChargesUseCase` (job agendado)
 
-Este é o caso de uso mais sensível do domínio (regras 11–14) e roda dentro de uma única transação de banco de dados:
+### Porta (chave para a Clean Architecture)
+- `PixPaymentGateway` (interface no Domain/Application):
+  ```ts
+  interface PixPaymentGateway {
+    createCharge(input: CreatePixChargeInput): Promise<PixChargeCreated>;
+    getChargeStatus(externalTxId: string): Promise<PixChargeStatus>;
+  }
+  ```
+  Implementação concreta na Infra: `BancoInterPixGateway`, que fala com a API do Banco
+  Inter (OAuth2 mTLS, endpoint de cobrança imediata via Pix, etc.). Por decisão do
+  projeto a integração é direta com o Banco Inter (sem gateway terceirizado), mas por
+  estar isolada atrás de uma porta, uma futura troca/adjunção de provedor não impacta
+  Domain nem Application.
+- `PixWebhookVerifier` (porta): valida assinatura/autenticidade do callback recebido do
+  Banco Inter antes de processar.
 
-1. Verifica se já existe `JobUnlock` para `(workerId, jobPostingId)`.
-   - Se existir: retorna o desbloqueio existente sem debitar créditos novamente (idempotência — regra 13).
-2. Se não existir:
-   a. Carrega `JobPosting`, obtém `unlockCost`.
-   b. Carrega (ou cria) o `CreditWallet` do trabalhador.
-   c. Chama `wallet.debit(unlockCost)` — lança `InsufficientCreditsError` se saldo insuficiente (regra 11).
-   d. Persiste o `CreditWallet` atualizado e o `CreditTransaction(type: 'DEBIT')`.
-   e. Cria e persiste o `JobUnlock`.
-3. Todas as escritas do passo 2 ocorrem atomicamente: se qualquer uma falhar, nenhuma é efetivada (regra 14).
+### Portas de persistência
+- `PixChargeRepository`: `save`, `findByExternalTxId`, `findPendingOlderThan`
 
-Ver [03-arquitetura-tecnica.md](03-arquitetura-tecnica.md) para como a porta de Unit of Work materializa essa transação através dos repositórios de `credit` e `job-unlock`.
+---
 
-### Portas
-```typescript
-interface JobUnlockRepository {
-  save(unlock: JobUnlock): Promise<void>;
-  findByWorkerAndJobPosting(workerId: WorkerId, jobPostingId: JobPostingId): Promise<JobUnlock | null>;
-  findByWorker(workerId: WorkerId): Promise<JobUnlock[]>;
-}
-```
+## 7. Módulo `job-unlock` (Desbloqueio)
 
-## 9. Unit of Work (porta transversal)
+### Entidade: `JobUnlock`
+| Campo | Tipo |
+|---|---|
+| id | UUID |
+| jobPostingId | UUID |
+| workerId | UUID |
+| creditsSpent | VO `CreditAmount` |
+| unlockedAt | Date |
 
-Casos de uso que escrevem em mais de um agregado/repositório na mesma operação (`UnlockJobPostingUseCase`, `ConfirmPaymentUseCase`, `ApproveJobPostingUseCase`/`RejectJobPostingUseCase`) dependem de uma porta de transação definida no Application:
+Restrição de unicidade: par (`jobPostingId`, `workerId`) é único — garante
+idempotência do RN-23.
 
-```typescript
-interface UnitOfWork {
-  runInTransaction<T>(work: () => Promise<T>): Promise<T>;
-}
-```
+### Caso de Uso principal: `UnlockJobPostingUseCase`
+Orquestra (dentro de uma transação):
+1. Verifica se já existe `JobUnlock` para o par (worker, vaga) → se existir, retorna os
+   dados de contato sem cobrar novamente.
+2. Busca `JobPosting` (deve estar `APPROVED`) e seu `unlockCost`.
+3. Busca `CreditWallet` do worker e chama `wallet.debit(unlockCost)` — lança erro de
+   domínio `InsufficientCreditsError` se saldo insuficiente (caso de uso captura e
+   retorna falha de negócio, não exceção HTTP).
+4. Persiste `CreditTransaction` tipo `CONSUMPTION`.
+5. Cria e persiste `JobUnlock`.
+6. Retorna `CompanyContactView` (dados de contato completos da empresa dona da vaga).
 
-A Infra implementa essa porta usando uma transação do Prisma. Isso mantém o Domain/Application livres de qualquer referência a `PrismaClient` — ver [03-arquitetura-tecnica.md](03-arquitetura-tecnica.md).
+### Casos de Uso adicionais
+- `ListMyUnlockedJobsUseCase` (histórico do trabalhador)
 
-## 10. Módulo `admin`
+### Porta
+- `JobUnlockRepository`: `save`, `findByWorkerAndJobPosting`, `listByWorker`
 
-### Entidades
-- **Admin** (agregado raiz) — `id: AdminId`, `name: string`, `email: Email`, `createdAt: Date`.
+---
 
-### Casos de uso
-`admin` é majoritariamente um módulo de orquestração/autorização fina sobre casos de uso de outros módulos:
-- `SuspendCompanyUseCase` / `ReactivateCompanyUseCase` (delega para o módulo `company`, regra 23).
-- `SuspendWorkerUseCase` / `ReactivateWorkerUseCase` (delega para o módulo `worker`, regra 24).
-- Casos de uso de moderação (`ListPendingModerationUseCase`, `ApproveJobPostingUseCase`, `RejectJobPostingUseCase`) são expostos ao admin mas pertencem ao módulo `moderation`.
+## 8. Módulo `platform-settings` (Configuração)
 
-### Portas
-```typescript
-interface AdminRepository {
-  findById(id: AdminId): Promise<Admin | null>;
-  findByEmail(email: Email): Promise<Admin | null>;
-}
-```
+### Entidade: `PlatformSetting` (chave/valor tipado, gerenciado pelo admin)
+Exemplos: `defaultUnlockCost`, `jobPostingExpirationDays`, `pixChargeExpirationMinutes`.
 
-Autenticação/autorização de admin (login, sessão, RBAC) é tratada na camada de Infra/Container (ver arquitetura) e não faz parte do modelo de domínio.
+---
 
-## 11. Mapa de dependências entre módulos
+## 9. Módulo `admin`
 
-```
-admin        --> company, worker, moderation
-moderation   --> job-posting
-job-unlock   --> job-posting, credit
-payment      --> credit
-job-posting  --> company (apenas leitura, para toFullView())
-```
+### Entidade: `Admin`
+| Campo | Tipo |
+|---|---|
+| id | UUID |
+| name | string |
+| email | VO `Email` |
+| passwordHash | string |
+| role | enum `MODERATOR`, `SUPER_ADMIN` |
 
-`company`, `worker` e `credit` não dependem de nenhum outro módulo de domínio — são os módulos "de base". Nenhum módulo depende de `admin`, o que evita que regras de negócio do domínio conheçam conceitos de autenticação/autorização.
+### Casos de Uso (dashboard/métricas)
+- `GetModerationQueueMetricsUseCase`
+- `GetRevenueMetricsUseCase` (receita de créditos por período)
+- `GetUnlockConversionMetricsUseCase`
+
+---
+
+## 10. Value Objects Compartilhados (`shared/domain`)
+
+| VO | Regras |
+|---|---|
+| `Cnpj` | 14 dígitos, valida dígito verificador |
+| `Cpf` | 11 dígitos, valida dígito verificador |
+| `Email` | regex RFC-simplificada |
+| `PhoneNumber` | formato BR (DDD + número), normaliza para E.164 |
+| `Money` | armazenado em **centavos** (inteiro), nunca float; operações `add`, `subtract`, `isGreaterThan` |
+| `CreditAmount` | inteiro não-negativo; operações `add`, `subtract`, `isGreaterThan` |
+| `Location` | `{ city: string; state: UF }`, valida UF contra lista fechada de 27 estados |
+| `SalaryRange` | `{ min?: Money; max?: Money }`, valida `min <= max` quando ambos presentes |
+| `JobCategory` | enum fechado (ex.: `WELDER`, `BOILERMAKER`, `STRUCTURAL_FITTER`, `LOCKSMITH`, `SAFETY_TECHNICIAN`, `DESIGNER`, `OTHER`) |
+
+## 11. Erros de Domínio (exemplos)
+- `InvalidCnpjError`, `InvalidCpfError`
+- `DuplicateCnpjError`, `DuplicateCpfError`
+- `InvalidJobPostingTransitionError`
+- `InsufficientCreditsError`
+- `JobPostingNotApprovedError`
+- `PixChargeAlreadyProcessedError`
+- `PixChargeExpiredError`
+
+Todos estendem uma classe base `DomainError` (não HTTP-aware); o mapeamento para
+status HTTP acontece na camada de Infra/Container (ex.: `ExceptionFilter` do NestJS).
