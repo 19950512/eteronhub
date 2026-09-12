@@ -45,3 +45,54 @@ model Admin {
   passwordHash String
   createdAt    DateTime @default(now())
 }
+
+enum JobPostingStatus {
+  DRAFT
+  IN_MODERATION
+  PUBLISHED
+  REJECTED
+  CLOSED
+  EXPIRED
+}
+
+// companyId não é uma relação Prisma (@relation) de propósito: cada agregado
+// (Company, JobPosting) é dono da própria tabela e os módulos só se referenciam
+// por id, sem joins do ORM entre bounded contexts — ver docs/02-modelo-de-dominio.md.
+model JobPosting {
+  id              String           @id @default(uuid())
+  companyId       String
+  title           String
+  description     String
+  requirements    String
+  salaryMinCents  Int
+  salaryMaxCents  Int
+  location        String
+  contactEmail    String?
+  contactPhone    String?
+  contactUrl      String?
+  unlockCost      Int
+  status          JobPostingStatus @default(DRAFT)
+  rejectionReason String?
+  publishedAt     DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime         @default(now())
+
+  @@index([companyId])
+  @@index([status])
+}
+
+enum ModerationDecisionType {
+  APPROVED
+  REJECTED
+}
+
+model ModerationDecision {
+  id           String                 @id @default(uuid())
+  jobPostingId String
+  adminId      String
+  decision     ModerationDecisionType
+  reason       String?
+  decidedAt    DateTime               @default(now())
+
+  @@index([jobPostingId])
+}

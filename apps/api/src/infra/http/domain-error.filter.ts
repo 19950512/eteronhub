@@ -3,6 +3,7 @@ import type { Response } from "express";
 import {
   ConflictError,
   DomainError,
+  ForbiddenError,
   NotFoundError,
   UnauthorizedError,
   ValidationError,
@@ -21,6 +22,7 @@ export class DomainErrorFilter implements ExceptionFilter {
     if (exception instanceof ConflictError) return HttpStatus.CONFLICT;
     if (exception instanceof NotFoundError) return HttpStatus.NOT_FOUND;
     if (exception instanceof UnauthorizedError) return HttpStatus.UNAUTHORIZED;
+    if (exception instanceof ForbiddenError) return HttpStatus.FORBIDDEN;
     return HttpStatus.INTERNAL_SERVER_ERROR;
   }
 }
