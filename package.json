@@ -1,0 +1,16 @@
+{
+  "name": "eteronhub",
+  "private": true,
+  "packageManager": "pnpm@11.18.0",
+  "scripts": {
+    "lint": "eslint .",
+    "test": "pnpm --filter api test",
+    "build": "pnpm --filter api build && pnpm --filter web build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "eslint": "^9.15.0",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.15.0"
+  }
+}

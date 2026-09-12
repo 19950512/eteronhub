@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      # `prisma generate` entra aqui a partir da Fase 1, quando os primeiros
+      # models (Company, Worker, Admin) existirem — com zero models o Prisma
+      # CLI recusa gerar o client.
+      - run: pnpm lint
+      - run: pnpm test
