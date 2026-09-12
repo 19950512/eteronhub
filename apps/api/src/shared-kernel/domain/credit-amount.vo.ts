@@ -1,6 +1,6 @@
-import { DomainError } from "./domain-error";
+import { ValidationError } from "./domain-error";
 
-export class InvalidCreditAmountError extends DomainError {}
+export class InvalidCreditAmountError extends ValidationError {}
 
 export class CreditAmount {
   private constructor(private readonly amount: number) {}

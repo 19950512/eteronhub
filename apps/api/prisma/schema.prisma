@@ -7,5 +7,41 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Fase 0: apenas a configuração de conexão. Os primeiros models (Company,
-// Worker, Admin) entram na Fase 1 — ver docs/04-roadmap-mvp.md.
+enum CompanyStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model Company {
+  id           String        @id @default(uuid())
+  cnpj         String        @unique
+  razaoSocial  String
+  nomeFantasia String?
+  email        String        @unique
+  passwordHash String
+  status       CompanyStatus @default(ACTIVE)
+  createdAt    DateTime      @default(now())
+}
+
+enum WorkerStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model Worker {
+  id           String       @id @default(uuid())
+  cpf          String       @unique
+  nome         String
+  email        String       @unique
+  passwordHash String
+  status       WorkerStatus @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+}
+
+model Admin {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}

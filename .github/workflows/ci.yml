@@ -21,8 +21,6 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      # `prisma generate` entra aqui a partir da Fase 1, quando os primeiros
-      # models (Company, Worker, Admin) existirem — com zero models o Prisma
-      # CLI recusa gerar o client.
+      - run: pnpm --filter api run prisma:generate
       - run: pnpm lint
       - run: pnpm test

@@ -1,6 +1,6 @@
-import { DomainError } from "./domain-error";
+import { ValidationError } from "./domain-error";
 
-export class InvalidCnpjError extends DomainError {}
+export class InvalidCnpjError extends ValidationError {}
 
 const FIRST_DIGIT_WEIGHTS = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
 const SECOND_DIGIT_WEIGHTS = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];

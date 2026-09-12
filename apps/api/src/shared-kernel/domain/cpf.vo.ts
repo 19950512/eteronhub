@@ -1,6 +1,6 @@
-import { DomainError } from "./domain-error";
+import { ValidationError } from "./domain-error";
 
-export class InvalidCpfError extends DomainError {}
+export class InvalidCpfError extends ValidationError {}
 
 function calcCheckDigit(digits: string, length: number): number {
   let sum = 0;

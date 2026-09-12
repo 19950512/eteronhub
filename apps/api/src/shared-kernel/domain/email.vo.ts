@@ -1,6 +1,6 @@
-import { DomainError } from "./domain-error";
+import { ValidationError } from "./domain-error";
 
-export class InvalidEmailError extends DomainError {}
+export class InvalidEmailError extends ValidationError {}
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

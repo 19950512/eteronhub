@@ -188,6 +188,8 @@ Convenções gerais:
 ### Admin (sessão de admin)
 | Método | Rota | Descrição |
 |---|---|---|
+| POST | `/admin/auth/login` | Login de admin, retorna JWT (sessão separada da de empresa/trabalhador). |
+| GET | `/admin/me` | Perfil do admin autenticado. |
 | GET | `/admin/moderation/pending` | Lista vagas em `IN_MODERATION`. |
 | POST | `/admin/moderation/:jobPostingId/approve` | Aprova e publica a vaga. |
 | POST | `/admin/moderation/:jobPostingId/reject` | Rejeita a vaga (`reason` obrigatório no body). |
