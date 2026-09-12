@@ -1,0 +1,23 @@
+---
+description: Regras de Clean Architecture para o backend NestJS/Prisma (apps/api)
+globs: apps/api/**/*.ts
+alwaysApply: false
+---
+
+# Backend (apps/api) — Clean Architecture
+
+- `domain/` nunca importa Prisma, decorators do NestJS ou qualquer tipo de
+  infraestrutura. Regras de negócio ficam em `domain/` e `application/`, nunca
+  em controllers, resolvers ou repositórios concretos.
+- Repositórios concretos e clients HTTP vivem em `infra/`; módulos de domínio
+  dependem de interfaces (portas) definidas em `domain/` ou `application/`,
+  nunca da implementação Prisma diretamente.
+- Alterações em `modules/payment` ou `modules/credit` (fluxo Pix) precisam
+  preservar idempotência e considerar reconciliação — consulte
+  `docs/05-operacao-e-lancamento.md` antes de mudar o contrato desses módulos.
+- `modules/job-unlock` é o único ponto que pode liberar dados de contato da
+  empresa para um worker; não exponha esse dado em nenhum outro endpoint sem
+  passar pela checagem de crédito.
+- Novo módulo de domínio segue a mesma estrutura das pastas existentes em
+  `apps/api/src/modules/*` (domain/application/infra) e usa `shared-kernel`
+  para código comum.

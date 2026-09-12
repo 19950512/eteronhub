@@ -1,0 +1,7 @@
+dist
+.next
+node_modules
+generated
+coverage
+pnpm-lock.yaml
+**/skills/**

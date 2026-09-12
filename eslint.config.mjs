@@ -9,6 +9,7 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/generated/**",
       "apps/web/next-env.d.ts",
+      "**/skills/**",
     ],
   },
   js.configs.recommended,
@@ -30,6 +31,22 @@ export default tseslint.config(
     languageOptions: {
       sourceType: "module",
       globals: { process: "readonly", fetch: "readonly", console: "readonly" },
+    },
+  },
+  {
+    files: [".claude/hooks/**/*.js"],
+    languageOptions: {
+      sourceType: "commonjs",
+      globals: {
+        module: "writable",
+        require: "readonly",
+        __dirname: "readonly",
+        process: "readonly",
+        console: "readonly",
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
     },
   },
 );

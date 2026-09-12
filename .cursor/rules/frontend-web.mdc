@@ -1,0 +1,16 @@
+---
+description: Convenções do frontend Next.js (apps/web)
+globs: apps/web/**/*.ts,apps/web/**/*.tsx
+alwaysApply: false
+---
+
+# Frontend (apps/web)
+
+- Toda chamada à API do backend passa pelo client em `src/lib/api`; não faça
+  `fetch` direto para URLs da api espalhado pelos componentes.
+- Autenticação/sessão fica centralizada em `src/lib/auth`; não duplique lógica
+  de token/sessão em componentes de página.
+- Textos voltados ao usuário ficam em português (pt-BR), consistente com o
+  domínio de negócio (empresa, trabalhador, vaga, crédito).
+- Vagas são publicadas de forma anônima: nenhuma tela fora do fluxo de
+  desbloqueio (job-unlock) pode renderizar dados de contato da empresa.
