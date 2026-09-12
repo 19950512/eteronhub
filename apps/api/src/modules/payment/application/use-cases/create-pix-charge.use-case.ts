@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { CREDIT_PACKAGE_REPOSITORY, PAYMENT_REPOSITORY, PIX_PAYMENT_GATEWAY } from "../../payment.tokens";
 import { Payment } from "../../domain/payment.entity";
 import { CreditPackageNotFoundError } from "../errors";
@@ -22,6 +22,8 @@ export interface CreatePixChargeOutput {
 
 @Injectable()
 export class CreatePixChargeUseCase {
+  private readonly logger = new Logger(CreatePixChargeUseCase.name);
+
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly paymentRepository: PaymentRepository,
     @Inject(CREDIT_PACKAGE_REPOSITORY) private readonly creditPackageRepository: CreditPackageRepository,
@@ -44,13 +46,22 @@ export class CreatePixChargeUseCase {
       expiresAt,
     });
 
-    const charge = await this.pixPaymentGateway.createCharge({
-      amount: payment.amount,
-      externalReferenceId: payment.id,
-      expiresAt: payment.expiresAt,
-    });
+    let charge;
+    try {
+      charge = await this.pixPaymentGateway.createCharge({
+        amount: payment.amount,
+        externalReferenceId: payment.id,
+        expiresAt: payment.expiresAt,
+      });
+    } catch (error) {
+      // Alvo de alerta: uma falha aqui normalmente significa que o Banco
+      // Inter está fora do ar ou as credenciais/certificado expiraram.
+      this.logger.error(`Falha ao criar cobrança Pix para o pagamento ${payment.id}`, error as Error);
+      throw error;
+    }
 
     await this.paymentRepository.save(payment);
+    this.logger.log(`Cobrança Pix ${payment.id} criada para o trabalhador ${input.workerId}`);
 
     return {
       paymentId: payment.id,

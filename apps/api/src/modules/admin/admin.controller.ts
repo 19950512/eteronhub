@@ -1,5 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Inject, NotFoundException, Param, Post, UseGuards } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { CurrentUser } from "../../auth/current-user.decorator";
+import { AUTH_THROTTLE } from "../../infra/http/rate-limits";
 import { JwtAuthGuard } from "../../auth/jwt-auth.guard";
 import { Roles } from "../../auth/roles.decorator";
 import { RolesGuard } from "../../auth/roles.guard";
@@ -24,6 +26,7 @@ export class AdminController {
     private readonly reactivateWorkerUseCase: ReactivateWorkerUseCase,
   ) {}
 
+  @Throttle(AUTH_THROTTLE)
   @Post("auth/login")
   async login(@Body() dto: AdminLoginDto): Promise<{ accessToken: string }> {
     return this.authenticateAdminUseCase.execute(dto);

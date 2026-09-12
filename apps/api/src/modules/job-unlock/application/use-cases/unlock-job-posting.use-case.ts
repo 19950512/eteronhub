@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { JobPostingNotFoundError } from "../../../job-posting/application/errors";
 import { JobPostingRepository } from "../../../job-posting/application/ports/job-posting-repository.port";
 import { JOB_POSTING_REPOSITORY } from "../../../job-posting/job-posting.tokens";
@@ -17,6 +17,8 @@ export interface UnlockJobPostingOutput {
 
 @Injectable()
 export class UnlockJobPostingUseCase {
+  private readonly logger = new Logger(UnlockJobPostingUseCase.name);
+
   constructor(
     @Inject(JOB_UNLOCK_REPOSITORY) private readonly jobUnlockRepository: JobUnlockRepository,
     @Inject(JOB_UNLOCK_WRITER) private readonly jobUnlockWriter: JobUnlockWriter,
@@ -46,6 +48,12 @@ export class UnlockJobPostingUseCase {
       jobPostingId,
       unlockCost: jobPosting.unlockCost,
     });
+
+    if (!result.alreadyExisted) {
+      this.logger.log(
+        `Vaga ${jobPostingId} desbloqueada pelo trabalhador ${workerId} por ${result.jobUnlock.creditsSpent.value} créditos`,
+      );
+    }
 
     return this.toOutput(result.jobUnlock, result.alreadyExisted);
   }

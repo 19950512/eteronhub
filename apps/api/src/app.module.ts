@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
 import { ScheduleModule } from "@nestjs/schedule";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { AuthModule } from "./auth/auth.module";
 import { HealthController } from "./health.controller";
 import { PrismaModule } from "./infra/prisma/prisma.module";
@@ -16,6 +18,9 @@ import { SharedKernelModule } from "./shared-kernel/shared-kernel.module";
 
 @Module({
   imports: [
+    // Limite padrão para toda a API; endpoints sensíveis (login, cadastro,
+    // webhook) aplicam um limite mais rígido via @Throttle() no controller.
+    ThrottlerModule.forRoot([{ name: "default", ttl: 60_000, limit: 100 }]),
     ScheduleModule.forRoot(),
     PrismaModule,
     SharedKernelModule,
@@ -31,5 +36,6 @@ import { SharedKernelModule } from "./shared-kernel/shared-kernel.module";
     JobPostingCatalogModule,
   ],
   controllers: [HealthController],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { JobPostingNotFoundError } from "../../../job-posting/application/errors";
 import { JobPostingRepository } from "../../../job-posting/application/ports/job-posting-repository.port";
 import { JOB_POSTING_REPOSITORY } from "../../../job-posting/job-posting.tokens";
@@ -8,6 +8,8 @@ import { ModerationDecisionRepository } from "../ports/moderation-decision-repos
 
 @Injectable()
 export class RejectJobPostingUseCase {
+  private readonly logger = new Logger(RejectJobPostingUseCase.name);
+
   constructor(
     @Inject(JOB_POSTING_REPOSITORY) private readonly jobPostingRepository: JobPostingRepository,
     @Inject(MODERATION_DECISION_REPOSITORY) private readonly moderationDecisionRepository: ModerationDecisionRepository,
@@ -23,5 +25,7 @@ export class RejectJobPostingUseCase {
 
     await this.jobPostingRepository.save(jobPosting);
     await this.moderationDecisionRepository.save(ModerationDecision.reject({ jobPostingId, adminId, reason }));
+
+    this.logger.log(`Vaga ${jobPostingId} rejeitada pelo admin ${adminId}: ${reason}`);
   }
 }

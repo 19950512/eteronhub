@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { JobPostingNotFoundError } from "../../../job-posting/application/errors";
 import { JobPostingRepository } from "../../../job-posting/application/ports/job-posting-repository.port";
 import { JOB_POSTING_REPOSITORY } from "../../../job-posting/job-posting.tokens";
@@ -10,6 +10,8 @@ const PUBLISHED_VALIDITY_DAYS = 30;
 
 @Injectable()
 export class ApproveJobPostingUseCase {
+  private readonly logger = new Logger(ApproveJobPostingUseCase.name);
+
   constructor(
     @Inject(JOB_POSTING_REPOSITORY) private readonly jobPostingRepository: JobPostingRepository,
     @Inject(MODERATION_DECISION_REPOSITORY) private readonly moderationDecisionRepository: ModerationDecisionRepository,
@@ -30,5 +32,7 @@ export class ApproveJobPostingUseCase {
     // escritas abaixo não são atômicas.
     await this.jobPostingRepository.save(jobPosting);
     await this.moderationDecisionRepository.save(ModerationDecision.approve({ jobPostingId, adminId }));
+
+    this.logger.log(`Vaga ${jobPostingId} aprovada pelo admin ${adminId}, publicada até ${expiresAt.toISOString()}`);
   }
 }

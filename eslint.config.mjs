@@ -25,4 +25,11 @@ export default tseslint.config(
       globals: { module: "writable", require: "readonly", __dirname: "readonly" },
     },
   },
+  {
+    files: ["**/scripts/**/*.mjs"],
+    languageOptions: {
+      sourceType: "module",
+      globals: { process: "readonly", fetch: "readonly", console: "readonly" },
+    },
+  },
 );
