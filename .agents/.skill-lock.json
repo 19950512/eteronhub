@@ -1,0 +1,131 @@
+{
+  "version": 2,
+  "skills": {
+    "best-practices": {
+      "name": "best-practices",
+      "source": "local",
+      "contentHash": "e22b6d3e9c7d29cc5f92a89a1a393aa2686aa5c0cd70b7159a7fc9a2bc779461",
+      "installedAt": "2026-09-12T14:32:57.829Z",
+      "updatedAt": "2026-09-12T14:32:58.077Z",
+      "agents": [
+        "cursor",
+        "github-copilot",
+        "claude-code"
+      ],
+      "method": "copy",
+      "global": false
+    },
+    "frontend-design": {
+      "name": "frontend-design",
+      "source": "local",
+      "contentHash": "b20162c8d6bcdd9137c4afceaeb4f9dce2c1ba3ccb57a96a3228b8cb33104ec4",
+      "installedAt": "2026-09-12T14:32:57.846Z",
+      "updatedAt": "2026-09-12T14:32:58.091Z",
+      "agents": [
+        "cursor",
+        "github-copilot",
+        "claude-code"
+      ],
+      "method": "copy",
+      "global": false
+    },
+    "harness-eval": {
+      "name": "harness-eval",
+      "source": "local",
+      "contentHash": "675761f3fdb123f26103811ffe52e384adff5ffdf7c603578dfaa4eb2e54b2a2",
+      "installedAt": "2026-09-12T14:32:57.872Z",
+      "updatedAt": "2026-09-12T14:32:58.109Z",
+      "agents": [
+        "cursor",
+        "github-copilot",
+        "claude-code"
+      ],
+      "method": "copy",
+      "global": false
+    },
+    "playwright-skill": {
+      "name": "playwright-skill",
+      "source": "local",
+      "contentHash": "9c45020d33af9ac2d44c89721f154c94bd73b9d8590117597b9a26920ff9cecc",
+      "installedAt": "2026-09-12T14:32:57.883Z",
+      "updatedAt": "2026-09-12T14:32:58.120Z",
+      "agents": [
+        "cursor",
+        "github-copilot",
+        "claude-code"
+      ],
+      "method": "copy",
+      "global": false
+    },
+    "security-best-practices": {
+      "name": "security-best-practices",
+      "source": "local",
+      "contentHash": "6fec09f7e43bb297ad6097e13469e85aa5b5d671a839b4f7e7871ef8eaa76c4e",
+      "installedAt": "2026-09-12T14:32:57.901Z",
+      "updatedAt": "2026-09-12T14:32:58.136Z",
+      "agents": [
+        "cursor",
+        "github-copilot",
+        "claude-code"
+      ],
+      "method": "copy",
+      "global": false
+    },
+    "security-ownership-map": {
+      "name": "security-ownership-map",
+      "source": "local",
+      "contentHash": "d6231f21029bc14fc776dbef909f631a6b39d7d1b46b11b25dbfe51c51dd7141",
+      "installedAt": "2026-09-12T14:32:57.926Z",
+      "updatedAt": "2026-09-12T14:32:58.158Z",
+      "agents": [
+        "cursor",
+        "github-copilot",
+        "claude-code"
+      ],
+      "method": "copy",
+      "global": false
+    },
+    "tlc-spec-driven": {
+      "name": "tlc-spec-driven",
+      "source": "local",
+      "contentHash": "9f4c793556001f3210a2d9fe3b41bf24e82e581c522d8dd50f65addfee169a29",
+      "installedAt": "2026-09-12T14:32:57.950Z",
+      "updatedAt": "2026-09-12T14:32:58.186Z",
+      "agents": [
+        "cursor",
+        "github-copilot",
+        "claude-code"
+      ],
+      "method": "copy",
+      "global": false
+    },
+    "tlc-spec-lean": {
+      "name": "tlc-spec-lean",
+      "source": "local",
+      "contentHash": "af264d73172a488bab93cb76366df411cee8631800480fbca4add00dd72bbd8b",
+      "installedAt": "2026-09-12T14:40:57.893Z",
+      "updatedAt": "2026-09-12T14:40:57.952Z",
+      "agents": [
+        "cursor",
+        "claude-code",
+        "github-copilot"
+      ],
+      "method": "copy",
+      "global": false
+    },
+    "the-judge": {
+      "name": "the-judge",
+      "source": "local",
+      "contentHash": "05526209052f6592ad98476e8f59e9ffa2a24e803e10a90ceac659476b509403",
+      "installedAt": "2026-09-12T14:58:48.043Z",
+      "updatedAt": "2026-09-12T14:58:48.068Z",
+      "agents": [
+        "cursor",
+        "claude-code",
+        "windsurf"
+      ],
+      "method": "copy",
+      "global": false
+    }
+  }
+}
