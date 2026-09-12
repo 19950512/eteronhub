@@ -96,3 +96,58 @@ model ModerationDecision {
 
   @@index([jobPostingId])
 }
+
+model CreditWallet {
+  id        String   @id @default(uuid())
+  workerId  String   @unique
+  balance   Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+enum CreditTransactionType {
+  TOPUP
+  DEBIT
+}
+
+model CreditTransaction {
+  id                 String                @id @default(uuid())
+  walletId           String
+  type               CreditTransactionType
+  amount             Int
+  relatedPaymentId   String?
+  relatedJobUnlockId String?
+  createdAt          DateTime              @default(now())
+
+  @@index([walletId])
+}
+
+model CreditPackage {
+  id            String  @id @default(uuid())
+  name          String
+  priceCents    Int
+  creditsAmount Int
+  active        Boolean @default(true)
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  EXPIRED
+}
+
+model Payment {
+  id              String        @id
+  workerId        String
+  creditPackageId String
+  amountCents     Int
+  creditsAmount   Int
+  status          PaymentStatus @default(PENDING)
+  pixTxId         String        @unique
+  pixE2eId        String?
+  createdAt       DateTime      @default(now())
+  expiresAt       DateTime
+  confirmedAt     DateTime?
+
+  @@index([workerId])
+  @@index([status])
+}
