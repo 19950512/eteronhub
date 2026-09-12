@@ -6,7 +6,9 @@ import { PrismaModule } from "./infra/prisma/prisma.module";
 import { AdminModule } from "./modules/admin/admin.module";
 import { CompanyModule } from "./modules/company/company.module";
 import { CreditModule } from "./modules/credit/credit.module";
+import { JobPostingCatalogModule } from "./modules/job-posting/job-posting-catalog.module";
 import { JobPostingModule } from "./modules/job-posting/job-posting.module";
+import { JobUnlockModule } from "./modules/job-unlock/job-unlock.module";
 import { ModerationModule } from "./modules/moderation/moderation.module";
 import { PaymentModule } from "./modules/payment/payment.module";
 import { WorkerModule } from "./modules/worker/worker.module";
@@ -25,6 +27,8 @@ import { SharedKernelModule } from "./shared-kernel/shared-kernel.module";
     ModerationModule,
     CreditModule,
     PaymentModule,
+    JobUnlockModule,
+    JobPostingCatalogModule,
   ],
   controllers: [HealthController],
 })

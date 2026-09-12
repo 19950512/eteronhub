@@ -151,3 +151,17 @@ model Payment {
   @@index([workerId])
   @@index([status])
 }
+
+model JobUnlock {
+  id           String   @id @default(uuid())
+  workerId     String
+  jobPostingId String
+  creditsSpent Int
+  unlockedAt   DateTime @default(now())
+
+  // Garante, no nível do banco, que duas transações concorrentes de
+  // desbloqueio para o mesmo par nunca resultem em dois registros — ver
+  // apps/api/src/modules/job-unlock/infra/persistence/prisma-job-unlock.writer.ts.
+  @@unique([workerId, jobPostingId])
+  @@index([workerId])
+}

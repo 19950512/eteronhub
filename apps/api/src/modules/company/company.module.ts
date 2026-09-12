@@ -16,6 +16,6 @@ import { PrismaCompanyRepository } from "./infra/persistence/prisma-company.repo
     ReactivateCompanyUseCase,
     AuthenticateCompanyUseCase,
   ],
-  exports: [SuspendCompanyUseCase, ReactivateCompanyUseCase, AuthenticateCompanyUseCase],
+  exports: [COMPANY_REPOSITORY, SuspendCompanyUseCase, ReactivateCompanyUseCase, AuthenticateCompanyUseCase],
 })
 export class CompanyModule {}

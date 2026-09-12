@@ -56,6 +56,16 @@ export interface JobPostingInternalView extends JobPostingPublicView {
   createdAt: Date;
 }
 
+export interface JobPostingCompanyInfo {
+  razaoSocial: string;
+  nomeFantasia: string | null;
+}
+
+export interface JobPostingUnlockedView extends JobPostingPublicView {
+  companyName: string;
+  contactInfo: { email: string | null; phone: string | null; applicationUrl: string | null };
+}
+
 export class JobPosting {
   private constructor(private readonly props: JobPostingProps) {}
 
@@ -170,6 +180,20 @@ export class JobPosting {
     };
   }
 
+  // Só deve ser chamada pelo módulo job-unlock, depois de confirmado que o
+  // trabalhador já desbloqueou esta vaga (documento 2, seção 4).
+  toUnlockedView(companyInfo: JobPostingCompanyInfo): JobPostingUnlockedView {
+    return {
+      ...this.toPublicView(),
+      companyName: companyInfo.nomeFantasia ?? companyInfo.razaoSocial,
+      contactInfo: {
+        email: this.props.contactInfo.email,
+        phone: this.props.contactInfo.phone,
+        applicationUrl: this.props.contactInfo.applicationUrl,
+      },
+    };
+  }
+
   get id(): string {
     return this.props.id;
   }
@@ -180,6 +204,10 @@ export class JobPosting {
 
   get status(): JobPostingStatus {
     return this.props.status;
+  }
+
+  get unlockCost(): CreditAmount {
+    return this.props.unlockCost;
   }
 
   get expiresAt(): Date | null {

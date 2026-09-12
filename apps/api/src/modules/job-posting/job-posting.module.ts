@@ -10,11 +10,16 @@ import { UpdateJobPostingDraftUseCase } from "./application/use-cases/update-job
 import { ExpireJobPostingsJob } from "./infra/jobs/expire-job-postings.job";
 import { PrismaJobPostingRepository } from "./infra/persistence/prisma-job-posting.repository";
 import { JobPostingCompanyController } from "./job-posting-company.controller";
-import { JobPostingPublicController } from "./job-posting-public.controller";
 import { JOB_POSTING_REPOSITORY } from "./job-posting.tokens";
 
+// O controller público (JobPostingPublicController) NÃO é registrado aqui —
+// ele vive em job-posting-catalog.module.ts, que importa este módulo e o
+// job-unlock. Isso evita uma dependência circular entre job-posting e
+// job-unlock (job-unlock precisa de JOB_POSTING_REPOSITORY; se este módulo
+// também importasse job-unlock para o controller público, os dois módulos
+// dependeriam um do outro).
 @Module({
-  controllers: [JobPostingCompanyController, JobPostingPublicController],
+  controllers: [JobPostingCompanyController],
   providers: [
     { provide: JOB_POSTING_REPOSITORY, useClass: PrismaJobPostingRepository },
     CreateJobPostingUseCase,
@@ -27,6 +32,6 @@ import { JOB_POSTING_REPOSITORY } from "./job-posting.tokens";
     ExpireJobPostingsUseCase,
     ExpireJobPostingsJob,
   ],
-  exports: [JOB_POSTING_REPOSITORY],
+  exports: [JOB_POSTING_REPOSITORY, ListPublicJobPostingsUseCase, GetPublicJobPostingDetailsUseCase],
 })
 export class JobPostingModule {}
