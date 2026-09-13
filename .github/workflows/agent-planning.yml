@@ -56,10 +56,13 @@ jobs:
           ${ISSUE_BODY}"
 
           # --print roda em modo headless (sem interação), --output-format text
-          # devolve só a resposta final do modelo
+          # devolve só a resposta final do modelo.
+          # O prompt vai por stdin: --allowedTools é uma flag variádica (consome
+          # todos os args seguintes), então um prompt posicional depois dela é
+          # engolido como se fosse mais um nome de tool.
           claude --print --output-format text \
             --allowedTools "Read,Grep,Glob" \
-            "$FULL_PROMPT" > plan_output.json
+            <<< "$FULL_PROMPT" > plan_output.json
 
           cat plan_output.json
 

@@ -77,9 +77,11 @@ jobs:
 
           # --allowedTools mais amplo aqui: este agente PODE editar arquivos e rodar comandos,
           # diferente do agente de planejamento (Read-only).
+          # O prompt vai por stdin pelo mesmo motivo do agent-planning.yml: --allowedTools
+          # é variádica e engoliria um prompt posicional.
           claude --print \
             --allowedTools "Read,Edit,Write,Bash,Grep,Glob" \
-            "$PROMPT"
+            <<< "$PROMPT"
 
       - name: Commit das mudanças
         id: commit
