@@ -98,7 +98,10 @@ jobs:
       - name: Abrir Pull Request
         if: steps.commit.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PROJECT_PAT: por padrão o GITHUB_TOKEN não tem permissão de criar PRs
+          # ("GitHub Actions is not permitted to create or approve pull requests"),
+          # é uma proteção do próprio GitHub contra automação descontrolada.
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
         run: |
           gh pr create \
             --title "Implementa: ${{ github.event.issue.title }}" \
