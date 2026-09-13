@@ -1,3 +1,5 @@
+<!-- Eteron Hub: marketplace B2B de metalurgia que conecta empresas a trabalhadores. -->
+
 # Eteron Hub
 
 Marketplace B2B do setor de metalurgia e estruturas metálicas: conecta empresas a
