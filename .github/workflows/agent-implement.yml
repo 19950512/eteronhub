@@ -1,0 +1,134 @@
+name: Agente de Implementação
+
+# Dispara quando a issue recebe a label "pronto-implementar"
+# (aplicada automaticamente pelo agent-planning.yml quando confidence = high,
+# ou manualmente por você quando aprova um plano que ficou "aguarda-humano")
+on:
+  issues:
+    types: [labeled]
+
+env:
+  # Ver .github/workflows/agent-planning.yml para o porquê deste espelhamento.
+  PROJECT_OWNER: "19950512"
+  PROJECT_NUMBER: "10"
+
+jobs:
+  implement:
+    if: github.event.label.name == 'pronto-implementar'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PROJECT_PAT }}
+
+      - name: Refletir "Em Implementação" no Project
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+          ISSUE_NODE_ID: ${{ github.event.issue.node_id }}
+        run: bash .github/scripts/set-project-status.sh "Em Implementação"
+
+      - name: Configurar git
+        run: |
+          git config user.name "agente-eteronhub"
+          git config user.email "agente@eteronhub.local"
+
+      - name: Instalar Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Criar branch de trabalho
+        run: |
+          BRANCH="agente/issue-${{ github.event.issue.number }}"
+          git checkout -b "$BRANCH"
+          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+
+      - name: Buscar plano comentado na issue
+        id: fetch_plan
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue view ${{ github.event.issue.number }} --json comments \
+            --jq '[.comments[] | select(.body | contains("Plano gerado pelo agente"))][-1].body' \
+            > plan_context.md
+          cat plan_context.md
+
+      - name: Rodar agente de implementação
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          PLAN=$(cat plan_context.md)
+          PROMPT="Implemente a seguinte issue seguindo o plano já aprovado abaixo.
+          Siga os padrões de código já existentes no repositório. Rode os testes
+          existentes antes de considerar concluído, se houver.
+
+          ## Issue
+          Título: ${ISSUE_TITLE}
+          Corpo: ${ISSUE_BODY}
+
+          ## Plano aprovado
+          ${PLAN}"
+
+          # --allowedTools mais amplo aqui: este agente PODE editar arquivos e rodar comandos,
+          # diferente do agente de planejamento (Read-only).
+          claude --print \
+            --allowedTools "Read,Edit,Write,Bash,Grep,Glob" \
+            "$PROMPT"
+
+      - name: Commit das mudanças
+        id: commit
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "Implementa issue #${{ github.event.issue.number }} via agente"
+            git push origin "$BRANCH"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Abrir Pull Request
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --title "Implementa: ${{ github.event.issue.title }}" \
+            --body "Gerado automaticamente pelo agente de implementação a partir da issue #${{ github.event.issue.number }}.
+
+          Revisar com atenção antes do merge." \
+            --base main \
+            --head "$BRANCH"
+
+          gh issue edit ${{ github.event.issue.number }} \
+            --remove-label "pronto-implementar" --add-label "em-revisao"
+
+      - name: Refletir "Em Revisão" no Project
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+          ISSUE_NODE_ID: ${{ github.event.issue.node_id }}
+        run: bash .github/scripts/set-project-status.sh "Em Revisão"
+
+      - name: Sinalizar falha (nenhuma mudança gerada)
+        if: steps.commit.outputs.changed == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} \
+            --body "O agente de implementação rodou mas não gerou nenhuma alteração. Precisa de revisão humana."
+          gh issue edit ${{ github.event.issue.number }} \
+            --remove-label "pronto-implementar" --add-label "aguarda-humano"
+
+      - name: Refletir "Aguardando Humano" no Project
+        if: steps.commit.outputs.changed == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+          ISSUE_NODE_ID: ${{ github.event.issue.node_id }}
+        run: bash .github/scripts/set-project-status.sh "Aguardando Humano"

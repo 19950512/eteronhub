@@ -1,0 +1,131 @@
+name: Agente de Planejamento
+
+# Dispara quando alguém adiciona a label "precisa-plano" numa issue.
+# Quem aplica essa label é o suporte, na hora de abrir o ticket — um Project
+# de usuário não dispara Actions ao mudar de coluna, só um Project de
+# organização (ver docs/06-pipeline-planejamento-implementacao.md). O Project
+# aqui é atualizado pelos agentes como espelho visual do progresso, não como
+# gatilho.
+on:
+  issues:
+    types: [labeled]
+
+env:
+  # Project (v2) de usuário usado como board visual do pipeline.
+  # Quem dispara os workflows são as labels, não o Project (ver
+  # docs/06-pipeline-planejamento-implementacao.md) — Projects de usuário não
+  # suportam o evento projects_v2_item como trigger nativo do Actions.
+  PROJECT_OWNER: "19950512"
+  PROJECT_NUMBER: "10"
+
+jobs:
+  plan:
+    if: github.event.label.name == 'precisa-plano'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Refletir "Planejando" no Project
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+          ISSUE_NODE_ID: ${{ github.event.issue.node_id }}
+        run: bash .github/scripts/set-project-status.sh "Planejando"
+
+      - name: Instalar Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Rodar agente de planejamento
+        id: plan
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          PROMPT_FILE=".claude/prompts/planning-agent.md"
+          FULL_PROMPT="$(cat "$PROMPT_FILE")
+
+          ## Issue
+          Título: ${ISSUE_TITLE}
+
+          Corpo:
+          ${ISSUE_BODY}"
+
+          # --print roda em modo headless (sem interação), --output-format text
+          # devolve só a resposta final do modelo
+          claude --print --output-format text \
+            --allowedTools "Read,Grep,Glob" \
+            "$FULL_PROMPT" > plan_output.json
+
+          cat plan_output.json
+
+      - name: Processar resultado e decidir rota
+        id: route
+        run: |
+          CONFIDENCE=$(jq -r '.confidence' plan_output.json)
+          SUMMARY=$(jq -r '.summary' plan_output.json)
+          echo "confidence=$CONFIDENCE" >> "$GITHUB_OUTPUT"
+
+          PLAN_MD=$(jq -r '
+            "### Plano gerado pelo agente\n\n**Resumo:** " + .summary +
+            "\n\n**Confiança:** " + .confidence +
+            "\n**Risco:** " + .risk_level +
+            "\n\n**Passos:**\n" + ([.plan[] | "- " + .] | join("\n")) +
+            "\n\n**Arquivos afetados:**\n" + ([.files_affected[] | "- `" + . + "`"] | join("\n")) +
+            (if (.open_questions | length) > 0
+              then "\n\n**Perguntas em aberto:**\n" + ([.open_questions[] | "- " + .] | join("\n"))
+              else "" end)
+          ' plan_output.json)
+
+          echo "$PLAN_MD" > plan_comment.md
+
+      - name: Comentar plano na issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('plan_comment.md', 'utf8');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+      - name: Atualizar labels conforme confiança
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const confidence = "${{ steps.route.outputs.confidence }}";
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.issue.number;
+
+            await github.rest.issues.removeLabel({
+              owner, repo, issue_number, name: 'precisa-plano',
+            }).catch(() => {});
+
+            if (confidence === 'high') {
+              await github.rest.issues.addLabels({
+                owner, repo, issue_number, labels: ['pronto-implementar'],
+              });
+            } else {
+              await github.rest.issues.addLabels({
+                owner, repo, issue_number, labels: ['aguarda-humano'],
+              });
+            }
+
+      - name: Refletir estado final no Project
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT }}
+          ISSUE_NODE_ID: ${{ github.event.issue.node_id }}
+        run: |
+          if [ "${{ steps.route.outputs.confidence }}" == "high" ]; then
+            bash .github/scripts/set-project-status.sh "Pronto p/ Implementar"
+          else
+            bash .github/scripts/set-project-status.sh "Aguardando Humano"
+          fi
