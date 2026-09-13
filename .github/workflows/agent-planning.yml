@@ -102,6 +102,11 @@ jobs:
       - name: Atualizar labels conforme confiança
         uses: actions/github-script@v7
         with:
+          # PROJECT_PAT (não o GITHUB_TOKEN padrão): o GitHub não dispara um novo
+          # workflow para uma label adicionada pelo próprio GITHUB_TOKEN (proteção
+          # anti-loop), então o agent-implement.yml nunca acordaria quando a label
+          # "pronto-implementar" fosse aplicada aqui.
+          github-token: ${{ secrets.PROJECT_PAT }}
           script: |
             const confidence = "${{ steps.route.outputs.confidence }}";
             const owner = context.repo.owner;
