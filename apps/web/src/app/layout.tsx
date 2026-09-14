@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Footer } from "../components/footer";
 import { Header } from "../components/header";
 import { AuthProvider } from "../lib/auth/auth-context";
 import "./globals.css";
@@ -16,6 +17,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <main className="main">
             <div className="container">{children}</div>
           </main>
+          <Footer />
         </AuthProvider>
       </body>
     </html>
