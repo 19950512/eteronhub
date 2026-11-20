@@ -1,6 +1,9 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuthTokenService } from "../../../../shared-kernel/application/auth-token-service.port";
-import { InvalidCredentialsError } from "../../../../shared-kernel/application/errors";
+import {
+  AccountSuspendedError,
+  InvalidCredentialsError,
+} from "../../../../shared-kernel/application/errors";
 import { PasswordHasher } from "../../../../shared-kernel/application/password-hasher.port";
 import { Email } from "../../../../shared-kernel/domain/email.vo";
 import { AUTH_TOKEN_SERVICE, PASSWORD_HASHER } from "../../../../shared-kernel/tokens";
@@ -31,12 +34,21 @@ export class AuthenticateWorkerUseCase {
       throw new InvalidCredentialsError();
     }
 
-    const passwordMatches = await this.passwordHasher.compare(input.password, worker.passwordHash);
+    const passwordMatches = await this.passwordHasher.compare(
+      input.password,
+      worker.passwordHash,
+    );
     if (!passwordMatches) {
       throw new InvalidCredentialsError();
     }
+    if (worker.status === "SUSPENDED") {
+      throw new AccountSuspendedError();
+    }
 
-    const accessToken = this.authTokenService.sign({ subject: worker.id, role: "WORKER" });
+    const accessToken = this.authTokenService.sign({
+      subject: worker.id,
+      role: "WORKER",
+    });
     return { accessToken };
   }
 }

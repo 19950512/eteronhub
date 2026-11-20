@@ -13,6 +13,10 @@ Esta fase foi implementada e validada localmente (Postgres via Docker, sem acess
 - Logging estruturado nos pontos que mais importam para diagnóstico: confirmação de pagamento, criação de cobrança Pix (incluindo falha ao chamar o Inter — alvo de alerta), desbloqueio de vaga, aprovação/rejeição de moderação, reconciliação.
 - Primeira migration do Prisma versionada (`prisma/migrations/`), permitindo `prisma migrate deploy` em vez de depender de `db push` implícito.
 - Script de smoke test (`apps/api/scripts/smoke-test.mjs`).
+- Validação de ambiente na inicialização (`apps/api/src/infra/config/env.ts`): a API não sobe sem `JWT_SECRET` e, com `NODE_ENV=production`, recusa segredo de exemplo/curto e `CORS_ORIGIN` com `*` ou localhost.
+- Conta suspensa (empresa ou trabalhador) não faz login (403) e tokens já emitidos param de valer na hora (401): os guards reconsultam o status a cada requisição autenticada.
+- Jobs agendados (reconciliação, expiração de cobranças e de vagas) usam um lease no Postgres (tabela `JobLease`): com várias réplicas, cada job roda em uma só por vez.
+- `TRUST_PROXY_HOPS` para o rate limit enxergar o IP real do cliente atrás de load balancer.
 
 **Depende de acesso a infraestrutura real, não implementável nesta sessão:**
 
@@ -27,6 +31,8 @@ Ver [`apps/api/.env.example`](../apps/api/.env.example) para a lista completa. A
 - [ ] `DATABASE_URL` aponta para o Postgres de produção (não o de desenvolvimento).
 - [ ] `JWT_SECRET` é um valor novo, gerado aleatoriamente (ex.: `openssl rand -base64 48`), diferente de qualquer ambiente de teste.
 - [ ] `CORS_ORIGIN` lista exatamente os domínios do frontend de produção — nunca `*` nem um domínio de dev esquecido.
+- [ ] `TRUST_PROXY_HOPS` é igual ao número de proxies confiáveis na frente da API (ex.: `1` atrás de um único load balancer). Confirme com o teste da seção 5: requisições de IPs diferentes não podem dividir o mesmo limite.
+- [ ] O rate limit é em memória **por réplica**: com N réplicas, o limite efetivo por cliente é até N× o configurado. Se isso não for aceitável, troque o storage do throttler por Redis antes de escalar horizontalmente.
 - [ ] `ADMIN_EMAIL`/`ADMIN_PASSWORD` do seed são trocados por credenciais reais e a senha é alterada logo após o primeiro login (o seed só garante a existência da conta, não força troca de senha).
 - [ ] `BANCO_INTER_BASE_URL` aponta para o host de **produção** do Inter (não o sandbox) — confirmar na documentação oficial do Inter, nunca reaproveitar o valor usado em homologação.
 - [ ] `BANCO_INTER_CERT_PATH`/`BANCO_INTER_KEY_PATH` apontam para o certificado mTLS de produção, com permissões de leitura restritas ao usuário do processo.
@@ -35,7 +41,7 @@ Ver [`apps/api/.env.example`](../apps/api/.env.example) para a lista completa. A
 
 ## 3. Checklist de segurança pré-lançamento
 
-- [ ] `pnpm audit` (ou equivalente) rodado sem vulnerabilidades críticas abertas.
+- [ ] `pnpm audit --prod` rodado sem vulnerabilidades críticas/altas abertas. Correções transitivas ficam em `overrides` no `pnpm-workspace.yaml`; as moderadas remanescentes (`@nestjs/core`, `file-type`) só saem com a migração para Nest 11.
 - [ ] Rate limiting confirmado em produção com uma chamada real (ver seção 5).
 - [ ] Logs não vazam dados sensíveis — em particular, nenhum log imprime senha em texto plano, token JWT completo, ou dados de cartão/Pix além do necessário para diagnóstico (txid, e2eId são OK; CPF/CNPJ completos idealmente mascarados em logs de longa retenção).
 - [ ] `NODE_ENV=production` está setado, para que dependências como o Express desabilitem mensagens de erro verbosas.

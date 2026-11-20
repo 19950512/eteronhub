@@ -167,3 +167,11 @@ model JobUnlock {
   @@unique([workerId, jobPostingId])
   @@index([workerId])
 }
+
+// invariant: com várias réplicas da API, cada job agendado roda em no máximo
+// uma delas por vez — ver apps/api/src/infra/scheduling/job-lease.service.ts.
+model JobLease {
+  name        String   @id
+  owner       String
+  lockedUntil DateTime
+}
