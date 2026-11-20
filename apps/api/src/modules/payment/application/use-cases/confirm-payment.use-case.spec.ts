@@ -1,123 +1,101 @@
-import { AddCreditsUseCase } from "../../../credit/application/use-cases/add-credits.use-case";
-import { CreditTransactionRepository } from "../../../credit/application/ports/credit-transaction-repository.port";
-import { CreditWalletRepository } from "../../../credit/application/ports/credit-wallet-repository.port";
-import { CreditTransaction } from "../../../credit/domain/credit-transaction.entity";
-import { CreditWallet } from "../../../credit/domain/credit-wallet.entity";
-import { CreditAmount } from "../../../../shared-kernel/domain/credit-amount.vo";
-import { Money } from "../../../../shared-kernel/domain/money.vo";
-import { Payment } from "../../domain/payment.entity";
-import { PaymentRepository } from "../ports/payment-repository.port";
-import { ConfirmPaymentUseCase } from "./confirm-payment.use-case";
-
-class InMemoryPaymentRepository implements PaymentRepository {
-  private payments: Payment[] = [];
-
-  async save(payment: Payment): Promise<void> {
-    this.payments = this.payments.filter((p) => p.id !== payment.id);
-    this.payments.push(payment);
-  }
-
-  async findById(id: string): Promise<Payment | null> {
-    return this.payments.find((p) => p.id === id) ?? null;
-  }
-
-  async findByPixTxId(pixTxId: string): Promise<Payment | null> {
-    return this.payments.find((p) => p.pixTxId === pixTxId) ?? null;
-  }
-
-  async findPendingExpiredBefore(now: Date): Promise<Payment[]> {
-    return this.payments.filter((p) => p.status === "PENDING" && p.expiresAt <= now);
-  }
-
-  async findPendingOlderThan(threshold: Date): Promise<Payment[]> {
-    return this.payments.filter((p) => p.status === "PENDING" && p.createdAt <= threshold);
-  }
-}
-
-class InMemoryCreditWalletRepository implements CreditWalletRepository {
-  private wallets: CreditWallet[] = [];
-
-  async save(wallet: CreditWallet): Promise<void> {
-    this.wallets = this.wallets.filter((w) => w.id !== wallet.id);
-    this.wallets.push(wallet);
-  }
-
-  async findByWorkerId(workerId: string): Promise<CreditWallet | null> {
-    return this.wallets.find((w) => w.workerId === workerId) ?? null;
-  }
-
-  async getOrCreateForWorker(workerId: string): Promise<CreditWallet> {
-    const existing = await this.findByWorkerId(workerId);
-    if (existing) return existing;
-    const created = CreditWallet.openFor(workerId);
-    await this.save(created);
-    return created;
-  }
-}
-
-class InMemoryCreditTransactionRepository implements CreditTransactionRepository {
-  transactions: CreditTransaction[] = [];
-
-  async save(transaction: CreditTransaction): Promise<void> {
-    this.transactions.push(transaction);
-  }
-
-  async findByWallet(walletId: string): Promise<CreditTransaction[]> {
-    return this.transactions.filter((t) => t.walletId === walletId);
-  }
-}
+import {
+  createPayment,
+  paidCharge,
+  setupPaymentFlow,
+} from "./testing/payment-test-doubles";
 
 describe("ConfirmPaymentUseCase", () => {
-  function setup() {
-    const paymentRepository = new InMemoryPaymentRepository();
-    const creditWalletRepository = new InMemoryCreditWalletRepository();
-    const creditTransactionRepository = new InMemoryCreditTransactionRepository();
-    const addCreditsUseCase = new AddCreditsUseCase(creditWalletRepository, creditTransactionRepository);
-    const confirmPaymentUseCase = new ConfirmPaymentUseCase(paymentRepository, addCreditsUseCase);
-    return { paymentRepository, creditWalletRepository, creditTransactionRepository, confirmPaymentUseCase };
-  }
-
   it("credita a carteira do trabalhador ao confirmar o pagamento", async () => {
-    const { paymentRepository, creditWalletRepository, confirmPaymentUseCase } = setup();
-
-    const payment = Payment.create({
-      workerId: "worker-1",
-      creditPackageId: "package-1",
-      amount: Money.fromCents(2000),
-      creditsAmount: CreditAmount.of(20),
-      expiresAt: new Date(Date.now() + 60_000),
-    });
+    const { paymentRepository, gateway, writer, confirmPaymentUseCase } =
+      setupPaymentFlow();
+    const payment = createPayment();
     await paymentRepository.save(payment);
+    gateway.setCharge(payment.pixTxId, paidCharge());
 
-    await confirmPaymentUseCase.execute({ pixTxId: payment.pixTxId, e2eId: "e2e-1" });
+    await expect(
+      confirmPaymentUseCase.execute({ pixTxId: payment.pixTxId }),
+    ).resolves.toBe("CONFIRMED");
 
-    const wallet = await creditWalletRepository.findByWorkerId("worker-1");
-    expect(wallet?.balance.value).toBe(20);
+    expect(writer.balances.get("worker-1")).toBe(20);
+    const stored = await paymentRepository.findById(payment.id);
+    expect(stored?.status).toBe("CONFIRMED");
+    expect(stored?.pixE2eId).toBe("E2E-DO-PSP");
   });
 
   it("não credita duas vezes ao receber o mesmo webhook duplicado (regra 17)", async () => {
-    const { paymentRepository, creditWalletRepository, creditTransactionRepository, confirmPaymentUseCase } = setup();
-
-    const payment = Payment.create({
-      workerId: "worker-1",
-      creditPackageId: "package-1",
-      amount: Money.fromCents(2000),
-      creditsAmount: CreditAmount.of(20),
-      expiresAt: new Date(Date.now() + 60_000),
-    });
+    const { paymentRepository, gateway, writer, confirmPaymentUseCase } =
+      setupPaymentFlow();
+    const payment = createPayment();
     await paymentRepository.save(payment);
+    gateway.setCharge(payment.pixTxId, paidCharge());
 
-    await confirmPaymentUseCase.execute({ pixTxId: payment.pixTxId, e2eId: "e2e-1" });
-    await confirmPaymentUseCase.execute({ pixTxId: payment.pixTxId, e2eId: "e2e-1" });
-    await confirmPaymentUseCase.execute({ pixTxId: payment.pixTxId, e2eId: "e2e-1" });
+    await confirmPaymentUseCase.execute({ pixTxId: payment.pixTxId });
+    await confirmPaymentUseCase.execute({ pixTxId: payment.pixTxId });
+    await confirmPaymentUseCase.execute({ pixTxId: payment.pixTxId });
 
-    const wallet = await creditWalletRepository.findByWorkerId("worker-1");
-    expect(wallet?.balance.value).toBe(20);
-    expect(creditTransactionRepository.transactions).toHaveLength(1);
+    expect(writer.balances.get("worker-1")).toBe(20);
+    expect(writer.creditedPaymentIds).toHaveLength(1);
   });
 
   it("ignora silenciosamente um pixTxId desconhecido", async () => {
-    const { confirmPaymentUseCase } = setup();
-    await expect(confirmPaymentUseCase.execute({ pixTxId: "txid-inexistente" })).resolves.toBeUndefined();
+    const { confirmPaymentUseCase } = setupPaymentFlow();
+    await expect(
+      confirmPaymentUseCase.execute({ pixTxId: "txid-inexistente" }),
+    ).resolves.toBe("UNKNOWN_PAYMENT");
+  });
+
+  it("não credita um webhook forjado para uma cobrança que o PSP diz não estar paga", async () => {
+    const { paymentRepository, gateway, writer, confirmPaymentUseCase } =
+      setupPaymentFlow();
+    const payment = createPayment();
+    await paymentRepository.save(payment);
+    gateway.setCharge(payment.pixTxId, { ...paidCharge(), status: "ATIVA" });
+
+    await expect(
+      confirmPaymentUseCase.execute({ pixTxId: payment.pixTxId }),
+    ).resolves.toBe("NOT_PAID");
+
+    expect(writer.balances.get("worker-1")).toBeUndefined();
+    expect((await paymentRepository.findById(payment.id))?.status).toBe("PENDING");
+  });
+
+  it("não credita quando o valor pago no PSP difere do valor da cobrança", async () => {
+    const { paymentRepository, gateway, writer, confirmPaymentUseCase } =
+      setupPaymentFlow();
+    const payment = createPayment();
+    await paymentRepository.save(payment);
+    gateway.setCharge(payment.pixTxId, paidCharge(1));
+
+    await expect(
+      confirmPaymentUseCase.execute({ pixTxId: payment.pixTxId }),
+    ).resolves.toBe("AMOUNT_MISMATCH");
+
+    expect(writer.balances.get("worker-1")).toBeUndefined();
+  });
+
+  it("credita um pagamento já expirado localmente quando o PSP confirma que foi pago (RN-19)", async () => {
+    const { paymentRepository, gateway, writer, confirmPaymentUseCase } =
+      setupPaymentFlow();
+    const payment = createPayment({ expiresInMs: -1 });
+    payment.expire();
+    await paymentRepository.save(payment);
+    gateway.setCharge(payment.pixTxId, paidCharge());
+
+    await expect(
+      confirmPaymentUseCase.execute({ pixTxId: payment.pixTxId }),
+    ).resolves.toBe("CONFIRMED");
+
+    expect(writer.balances.get("worker-1")).toBe(20);
+  });
+
+  it("propaga a falha do PSP para que o webhook seja reentregue", async () => {
+    const { paymentRepository, gateway, confirmPaymentUseCase } = setupPaymentFlow();
+    const payment = createPayment();
+    await paymentRepository.save(payment);
+    gateway.setCharge(payment.pixTxId, new Error("Inter fora do ar"));
+
+    await expect(
+      confirmPaymentUseCase.execute({ pixTxId: payment.pixTxId }),
+    ).rejects.toThrow("Inter fora do ar");
   });
 });

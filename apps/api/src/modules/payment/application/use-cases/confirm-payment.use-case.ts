@@ -1,12 +1,19 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { AddCreditsUseCase } from "../../../credit/application/use-cases/add-credits.use-case";
-import { PAYMENT_REPOSITORY } from "../../payment.tokens";
+import {
+  PAYMENT_CONFIRMATION_WRITER,
+  PAYMENT_REPOSITORY,
+  PIX_PAYMENT_GATEWAY,
+} from "../../payment.tokens";
+import { PaymentConfirmationWriter } from "../ports/payment-confirmation-writer.port";
 import { PaymentRepository } from "../ports/payment-repository.port";
+import { PixPaymentGateway } from "../ports/pix-payment-gateway.port";
 
 export interface ConfirmPaymentInput {
   pixTxId: string;
-  e2eId?: string | null;
 }
+
+export type ConfirmPaymentOutcome =
+  "CONFIRMED" | "ALREADY_CONFIRMED" | "NOT_PAID" | "AMOUNT_MISMATCH" | "UNKNOWN_PAYMENT";
 
 @Injectable()
 export class ConfirmPaymentUseCase {
@@ -14,29 +21,57 @@ export class ConfirmPaymentUseCase {
 
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly paymentRepository: PaymentRepository,
-    private readonly addCreditsUseCase: AddCreditsUseCase,
+    @Inject(PIX_PAYMENT_GATEWAY) private readonly pixPaymentGateway: PixPaymentGateway,
+    @Inject(PAYMENT_CONFIRMATION_WRITER)
+    private readonly confirmationWriter: PaymentConfirmationWriter,
   ) {}
 
-  // Ignora silenciosamente txids que não correspondem a um pagamento
-  // conhecido — o webhook do Banco Inter pode notificar eventos que não são
-  // nossos, e o job de reconciliação só chama isto para txids que já são
-  // nossos (ver docs/03-arquitetura-tecnica.md, seção 4.3).
-  async execute(input: ConfirmPaymentInput): Promise<void> {
+  // invariant: o crédito só é liberado depois que o PSP confirma, na própria
+  // API dele, que a cobrança foi paga no valor esperado. O webhook é apenas um
+  // gatilho — seu conteúdo não é confiável (o txid é o paymentId, que o
+  // próprio trabalhador conhece).
+  async execute(input: ConfirmPaymentInput): Promise<ConfirmPaymentOutcome> {
     const payment = await this.paymentRepository.findByPixTxId(input.pixTxId);
     if (!payment) {
-      this.logger.warn(`Recebida confirmação para um pixTxId desconhecido: ${input.pixTxId}`);
-      return;
+      this.logger.warn(
+        `Recebida confirmação para um pixTxId desconhecido: ${input.pixTxId}`,
+      );
+      return "UNKNOWN_PAYMENT";
+    }
+    if (payment.status === "CONFIRMED") {
+      return "ALREADY_CONFIRMED";
     }
 
-    const wasNewlyConfirmed = payment.confirm(input.e2eId ?? null);
-    await this.paymentRepository.save(payment);
-
-    if (wasNewlyConfirmed) {
-      await this.addCreditsUseCase.execute({
-        workerId: payment.workerId,
-        amount: payment.creditsAmount,
-        relatedPaymentId: payment.id,
-      });
+    const charge = await this.pixPaymentGateway.getCharge(payment.pixTxId);
+    if (charge.status !== "CONCLUIDA") {
+      return "NOT_PAID";
     }
+    if (!charge.amount.equals(payment.amount)) {
+      // why: alvo de alerta — exige investigação manual; creditar ou expirar
+      // automaticamente aqui poderia dar crédito indevido ou esconder dinheiro recebido.
+      this.logger.error(
+        `Pagamento ${payment.id} CONCLUIDA no PSP com valor ${charge.amount.valueInCents} centavos, esperado ${payment.amount.valueInCents} — crédito NÃO liberado`,
+      );
+      return "AMOUNT_MISMATCH";
+    }
+
+    const confirmedAt = new Date();
+    payment.confirm(charge.e2eId, confirmedAt);
+
+    const credited = await this.confirmationWriter.confirmAndCredit({
+      paymentId: payment.id,
+      workerId: payment.workerId,
+      creditsAmount: payment.creditsAmount,
+      e2eId: charge.e2eId,
+      confirmedAt,
+    });
+    if (!credited) {
+      return "ALREADY_CONFIRMED";
+    }
+
+    this.logger.log(
+      `Pagamento ${payment.id} confirmado: ${payment.creditsAmount.value} créditos para o trabalhador ${payment.workerId}`,
+    );
+    return "CONFIRMED";
   }
 }

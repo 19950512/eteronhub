@@ -7,6 +7,7 @@ Este documento cobre a Fase 6 do [roadmap](04-roadmap-mvp.md): o que precisa exi
 Esta fase foi implementada e validada localmente (Postgres via Docker, sem acesso a um ambiente de produção real nem a credenciais do Banco Inter). O que é código está pronto e testado; o que depende de infraestrutura externa fica documentado como checklist.
 
 **Implementado e testado nesta fase:**
+
 - Rate limiting (`@nestjs/throttler`): 100 req/min por IP como padrão global, 5 req/min em `/auth/login`, `/admin/auth/login`, `POST /companies`, `POST /workers` (alvos de força bruta e criação de contas em massa), 30 req/min no webhook do Pix.
 - Validação do webhook do Pix por segredo compartilhado (`WebhookSecretGuard`, header `x-webhook-secret`) — defesa em profundidade além do mTLS que o Banco Inter já usa para autenticar a chamada.
 - Logging estruturado nos pontos que mais importam para diagnóstico: confirmação de pagamento, criação de cobrança Pix (incluindo falha ao chamar o Inter — alvo de alerta), desbloqueio de vaga, aprovação/rejeição de moderação, reconciliação.
@@ -14,6 +15,7 @@ Esta fase foi implementada e validada localmente (Postgres via Docker, sem acess
 - Script de smoke test (`apps/api/scripts/smoke-test.mjs`).
 
 **Depende de acesso a infraestrutura real, não implementável nesta sessão:**
+
 - Certificado mTLS e credenciais de produção do Banco Inter.
 - Ambiente de produção em si (servidor, banco gerenciado, DNS, TLS do próprio EteronHub).
 - Rotação de segredos em um cofre (Vault, AWS Secrets Manager, etc.) — hoje os segredos vivem em variáveis de ambiente simples.
@@ -49,8 +51,9 @@ Ver [`apps/api/.env.example`](../apps/api/.env.example) para a lista completa. A
    ```sql
    select * from "Payment" where id = '<paymentId>';
    ```
-3. **Verifique o status real no Banco Inter** consultando `GET /pix/v2/cob/{txid}` diretamente (o `pixTxId` do registro acima) com as credenciais de produção. Se o status lá for `CONCLUIDA` mas o registro local seguir `PENDING`, o webhook realmente se perdeu e a reconciliação automática ainda não rodou ou falhou.
-4. **Force a reconciliação manualmente** chamando `ConfirmPaymentUseCase` para aquele `pixTxId` (via um script one-off ou reexecutando o job manualmente) — a operação é idempotente (regra 17), então não há risco de creditar duas vezes mesmo que o webhook chegue depois.
+3. **Verifique o status real no Banco Inter** consultando `GET /pix/v2/cob/{txid}` diretamente (o `pixTxId` do registro acima) com as credenciais de produção. Se o status lá for `CONCLUIDA` mas o registro local seguir `PENDING` ou `EXPIRED`, o webhook realmente se perdeu e a reconciliação automática ainda não rodou ou falhou (procure nos logs por `Falha ao reconciliar o pagamento` / `Falha ao avaliar a expiração`).
+   - Se os logs mostram `crédito NÃO liberado` (valor pago no Inter diferente do valor da cobrança), **não force** a confirmação: o sistema recusa de propósito. Investigue o pagamento no Inter e trate como caso de suporte/estorno.
+4. **Force a reconciliação manualmente** chamando `ConfirmPaymentUseCase` para aquele `pixTxId` (via um script one-off ou reexecutando o job manualmente) — ele reconsulta o Inter, aceita pagamentos `PENDING` ou `EXPIRED` e é idempotente (regra 17, garantida por transação + constraint única em `CreditTransaction.relatedPaymentId`), então não há risco de creditar duas vezes mesmo que o webhook chegue depois.
 5. **Se o status no Inter for `ATIVA`** (cobrança nunca paga) e o trabalhador insiste que pagou, oriente-o a verificar o comprovante do próprio banco dele — nesse caso o problema está fora do EteronHub.
 6. **Nunca** credite manualmente sem confirmar o status no Inter primeiro — isso quebraria a garantia de que todo crédito corresponde a um pagamento real (documento 1, fluxo de créditos).
 

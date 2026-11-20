@@ -1,8 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import * as QRCode from "qrcode";
+import { Money } from "../../../../shared-kernel/domain/money.vo";
 import {
   CreatePixChargeInput,
   CreatePixChargeOutput,
+  PixChargeDetails,
   PixChargeStatus,
   PixPaymentGateway,
 } from "../../application/ports/pix-payment-gateway.port";
@@ -13,8 +15,9 @@ interface CobrancaResponse {
   pixCopiaECola: string;
 }
 
-interface CobrancaStatusResponse {
+interface CobrancaDetailsResponse {
   status: PixChargeStatus;
+  pix?: Array<{ endToEndId: string; valor: string }>;
 }
 
 // Implementa a porta PixPaymentGateway (documento 2, seção 7) falando
@@ -30,7 +33,10 @@ export class BancoInterPixGateway implements PixPaymentGateway {
     const httpClient = this.authService.getHttpClient();
     const pixKey = requiredEnv("BANCO_INTER_PIX_KEY");
 
-    const expiracaoSegundos = Math.max(1, Math.round((input.expiresAt.getTime() - Date.now()) / 1000));
+    const expiracaoSegundos = Math.max(
+      1,
+      Math.round((input.expiresAt.getTime() - Date.now()) / 1000),
+    );
 
     await httpClient.request<CobrancaResponse>({
       method: "PUT",
@@ -62,13 +68,38 @@ export class BancoInterPixGateway implements PixPaymentGateway {
     };
   }
 
-  async getChargeStatus(pixTxId: string): Promise<PixChargeStatus> {
+  async getCharge(pixTxId: string): Promise<PixChargeDetails> {
     const accessToken = await this.authService.getAccessToken();
-    const cobranca = await this.authService.getHttpClient().request<CobrancaStatusResponse>({
-      method: "GET",
-      path: `/pix/v2/cob/${pixTxId}`,
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    return cobranca.status;
+    const cobranca = await this.authService
+      .getHttpClient()
+      .request<CobrancaDetailsResponse>({
+        method: "GET",
+        path: `/pix/v2/cob/${encodeURIComponent(pixTxId)}`,
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+    // why: `valor.original` é o valor que nós mesmos pedimos na cobrança; o
+    // que o pagador de fato pagou está em `pix[].valor`. Sem Pix recebido
+    // ainda (ATIVA), não há valor pago a comparar.
+    const paidCents = (cobranca.pix ?? []).reduce(
+      (total, pix) => total + parseBrlAmountToCents(pix.valor),
+      0,
+    );
+    return {
+      status: cobranca.status,
+      amount: Money.fromCents(paidCents),
+      e2eId: cobranca.pix?.[0]?.endToEndId ?? null,
+    };
   }
+}
+
+// why: a API Pix devolve valores como string decimal ("20.00"); converter via
+// float arriscaria erro de arredondamento justamente na comparação de valor
+// que protege contra crédito indevido.
+export function parseBrlAmountToCents(value: string): number {
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value.trim());
+  if (!match) {
+    throw new Error(`Valor Pix em formato inesperado: ${value}`);
+  }
+  const [, reais, centavos = ""] = match;
+  return Number(reais) * 100 + Number(centavos.padEnd(2, "0"));
 }

@@ -34,6 +34,14 @@ export class PrismaPaymentRepository implements PaymentRepository {
     });
   }
 
+  async markExpiredIfPending(payment: Payment): Promise<boolean> {
+    const { count } = await this.prisma.payment.updateMany({
+      where: { id: payment.id, status: "PENDING" },
+      data: { status: "EXPIRED" },
+    });
+    return count === 1;
+  }
+
   async findById(id: string): Promise<Payment | null> {
     const record = await this.prisma.payment.findUnique({ where: { id } });
     return record ? this.toDomain(record) : null;
@@ -54,6 +62,13 @@ export class PrismaPaymentRepository implements PaymentRepository {
   async findPendingOlderThan(threshold: Date): Promise<Payment[]> {
     const records = await this.prisma.payment.findMany({
       where: { status: "PENDING", createdAt: { lte: threshold } },
+    });
+    return records.map((record) => this.toDomain(record));
+  }
+
+  async findExpiredSince(since: Date): Promise<Payment[]> {
+    const records = await this.prisma.payment.findMany({
+      where: { status: "EXPIRED", expiresAt: { gte: since } },
     });
     return records.map((record) => this.toDomain(record));
   }

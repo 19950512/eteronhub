@@ -22,3 +22,36 @@ jobs:
       - run: pnpm --filter api run prisma:generate
       - run: pnpm lint
       - run: pnpm test
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: eteron
+          POSTGRES_PASSWORD: eteron
+          POSTGRES_DB: eteronhub_it
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U eteron"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://eteron:eteron@localhost:5432/eteronhub_it?schema=public
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter api run prisma:generate
+      - run: pnpm --filter api run prisma:migrate:deploy
+      - run: pnpm --filter api run test:integration

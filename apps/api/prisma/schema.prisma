@@ -114,7 +114,9 @@ model CreditTransaction {
   walletId           String
   type               CreditTransactionType
   amount             Int
-  relatedPaymentId   String?
+  // invariant: no máximo um crédito por pagamento — última barreira contra
+  // crédito em dobro se duas confirmações concorrentes passarem do caso de uso.
+  relatedPaymentId   String?               @unique
   relatedJobUnlockId String?
   createdAt          DateTime              @default(now())
 

@@ -5,7 +5,10 @@ export interface BancoInterHttpClientConfig {
   baseUrl: string;
   certPath: string;
   keyPath: string;
+  timeoutMs?: number;
 }
+
+const DEFAULT_TIMEOUT_MS = 15_000;
 
 export interface BancoInterHttpRequest {
   method: string;
@@ -22,9 +25,11 @@ export interface BancoInterHttpRequest {
 export class BancoInterHttpClient {
   private readonly agent: https.Agent;
   private readonly baseUrl: string;
+  private readonly timeoutMs: number;
 
   constructor(config: BancoInterHttpClientConfig) {
     this.baseUrl = config.baseUrl;
+    this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.agent = new https.Agent({
       cert: fs.readFileSync(config.certPath),
       key: fs.readFileSync(config.keyPath),
@@ -59,6 +64,15 @@ export class BancoInterHttpClient {
         },
       );
 
+      // why: sem timeout, um Inter lento prende a requisição do usuário e o
+      // job de reconciliação indefinidamente.
+      req.setTimeout(this.timeoutMs, () => {
+        req.destroy(
+          new Error(
+            `Banco Inter não respondeu em ${this.timeoutMs}ms (${options.method} ${options.path})`,
+          ),
+        );
+      });
       req.on("error", reject);
       if (options.body) {
         req.write(options.body);

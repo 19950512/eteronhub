@@ -47,9 +47,16 @@ describe("Payment", () => {
     expect(() => payment.expire()).toThrow(InvalidPaymentStateError);
   });
 
-  it("não confirma um pagamento já expirado", () => {
+  it("confirma um pagamento já expirado localmente, pois o PSP só confirma o que foi pago (RN-19)", () => {
     const payment = createPendingPayment(-1);
     payment.expire();
-    expect(() => payment.confirm("e2e-1")).toThrow(InvalidPaymentStateError);
+    expect(payment.confirm("e2e-1")).toBe(true);
+    expect(payment.status).toBe("CONFIRMED");
+  });
+
+  it("não expira um pagamento já confirmado", () => {
+    const payment = createPendingPayment(-1);
+    payment.confirm("e2e-1");
+    expect(() => payment.expire()).toThrow(InvalidPaymentStateError);
   });
 });

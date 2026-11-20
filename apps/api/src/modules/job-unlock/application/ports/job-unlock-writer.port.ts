@@ -17,12 +17,9 @@ export interface JobUnlockWriteResult {
  * JobUnlock, retorna-o sem debitar créditos de novo (idempotência, regra 13).
  * Caso contrário, debita `unlockCost` da carteira do trabalhador e cria o
  * JobUnlock — as duas escritas ocorrem juntas ou nenhuma ocorre (regra 14).
- *
- * A garantia de atomicidade cobre especificamente chamadas concorrentes para
- * o MESMO par (workerId, jobPostingId) — não é uma garantia geral contra
- * corridas entre débitos de vagas diferentes na mesma carteira, que ainda
- * seguem um padrão ler-modificar-escrever (ver PrismaJobUnlockWriter).
  */
+// invariant: o saldo nunca fica negativo nem perde atualização, inclusive com
+// desbloqueios de vagas diferentes ou recargas concorrentes na mesma carteira.
 export interface JobUnlockWriter {
   unlock(input: UnlockWriteInput): Promise<JobUnlockWriteResult>;
 }

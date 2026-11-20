@@ -1,4 +1,10 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from "@nestjs/common";
+import { timingSafeEqual } from "node:crypto";
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from "@nestjs/common";
 import type { Request } from "express";
 
 const WEBHOOK_SECRET_HEADER = "x-webhook-secret";
@@ -12,6 +18,9 @@ const WEBHOOK_SECRET_HEADER = "x-webhook-secret";
  * bloqueia nada — evita quebrar o webhook em dev/sandbox por esquecimento
  * de configuração.
  */
+// invariant: este guard NÃO é o que impede crédito indevido — o
+// ConfirmPaymentUseCase sempre reconsulta a cobrança na API do Inter antes de
+// creditar, então um webhook forjado no máximo dispara essa consulta.
 @Injectable()
 export class WebhookSecretGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
@@ -22,9 +31,22 @@ export class WebhookSecretGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<Request>();
     const providedSecret = request.headers[WEBHOOK_SECRET_HEADER];
-    if (providedSecret !== expectedSecret) {
+    if (
+      typeof providedSecret !== "string" ||
+      !secretsMatch(providedSecret, expectedSecret)
+    ) {
       throw new UnauthorizedException("Segredo do webhook inválido ou ausente");
     }
     return true;
   }
+}
+
+// why: comparação em tempo constante evita vazar o segredo byte a byte por timing.
+function secretsMatch(provided: string, expected: string): boolean {
+  const providedBuffer = Buffer.from(provided);
+  const expectedBuffer = Buffer.from(expected);
+  return (
+    providedBuffer.length === expectedBuffer.length &&
+    timingSafeEqual(providedBuffer, expectedBuffer)
+  );
 }

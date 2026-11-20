@@ -54,13 +54,15 @@ export class Payment {
     return new Payment(props);
   }
 
-  /** Idempotente: uma segunda confirmação do mesmo pagamento é um no-op (regra 17). */
+  /**
+   * Idempotente: uma segunda confirmação do mesmo pagamento é um no-op (regra 17).
+   * Aceita um pagamento já EXPIRED: RN-19 só nega crédito a cobranças expiradas
+   * *e não pagas* — se o PSP confirma o recebimento (webhook atrasado ou
+   * expiração local antes da reconciliação), o dinheiro entrou e o crédito é devido.
+   */
   confirm(e2eId: string | null, confirmedAt: Date = new Date()): boolean {
     if (this.props.status === "CONFIRMED") {
       return false;
-    }
-    if (this.props.status !== "PENDING") {
-      throw new InvalidPaymentStateError(`Não é possível confirmar um pagamento com status ${this.props.status}`);
     }
     this.props.status = "CONFIRMED";
     this.props.pixE2eId = e2eId;
@@ -70,10 +72,14 @@ export class Payment {
 
   expire(now: Date = new Date()): void {
     if (this.props.status !== "PENDING") {
-      throw new InvalidPaymentStateError(`Não é possível expirar um pagamento com status ${this.props.status}`);
+      throw new InvalidPaymentStateError(
+        `Não é possível expirar um pagamento com status ${this.props.status}`,
+      );
     }
     if (now < this.props.expiresAt) {
-      throw new InvalidPaymentStateError("O pagamento ainda não atingiu a data de expiração");
+      throw new InvalidPaymentStateError(
+        "O pagamento ainda não atingiu a data de expiração",
+      );
     }
     this.props.status = "EXPIRED";
   }

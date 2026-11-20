@@ -4,9 +4,16 @@ import { Prisma } from "@prisma/client";
 import type { JobUnlock as JobUnlockRecord } from "@prisma/client";
 import { PrismaService } from "../../../../infra/prisma/prisma.service";
 import { CreditAmount } from "../../../../shared-kernel/domain/credit-amount.vo";
-import { CreditWallet } from "../../../credit/domain/credit-wallet.entity";
+import {
+  CreditWallet,
+  InsufficientCreditsError,
+} from "../../../credit/domain/credit-wallet.entity";
 import { JobUnlock } from "../../domain/job-unlock.entity";
-import { JobUnlockWriteResult, JobUnlockWriter, UnlockWriteInput } from "../../application/ports/job-unlock-writer.port";
+import {
+  JobUnlockWriteResult,
+  JobUnlockWriter,
+  UnlockWriteInput,
+} from "../../application/ports/job-unlock-writer.port";
 
 /**
  * Implementa a atomicidade exigida pelas regras 11-14 com uma transação do
@@ -24,10 +31,9 @@ import { JobUnlockWriteResult, JobUnlockWriter, UnlockWriteInput } from "../../a
  *    tinha feito. O catch abaixo trata essa falha buscando o desbloqueio
  *    que a transação vencedora já commitou, em vez de propagar o erro.
  *
- * Essa garantia cobre especificamente o par (workerId, jobPostingId) — não
- * é uma trava geral contra corridas de débito entre vagas diferentes na
- * mesma carteira (ver job-unlock-writer.port.ts).
  */
+// invariant: débitos concorrentes de vagas diferentes na mesma carteira são
+// serializados pelo decremento condicional no passo 2 — ver job-unlock-writer.port.ts.
 @Injectable()
 export class PrismaJobUnlockWriter implements JobUnlockWriter {
   constructor(private readonly prisma: PrismaService) {}
@@ -36,7 +42,12 @@ export class PrismaJobUnlockWriter implements JobUnlockWriter {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const existingRecord = await tx.jobUnlock.findUnique({
-          where: { workerId_jobPostingId: { workerId: input.workerId, jobPostingId: input.jobPostingId } },
+          where: {
+            workerId_jobPostingId: {
+              workerId: input.workerId,
+              jobPostingId: input.jobPostingId,
+            },
+          },
         });
         if (existingRecord) {
           return { jobUnlock: this.toDomain(existingRecord), alreadyExisted: true };
@@ -59,10 +70,17 @@ export class PrismaJobUnlockWriter implements JobUnlockWriter {
         // escrita parcial.
         wallet.debit(input.unlockCost);
 
-        await tx.creditWallet.update({
-          where: { id: wallet.id },
-          data: { balance: wallet.balance.value, updatedAt: wallet.updatedAt },
+        // invariant: o saldo lido acima pode estar velho (outro desbloqueio de
+        // vaga diferente ou uma recarga concorrente). O decremento condicional
+        // é avaliado pelo banco sob trava de linha, então nunca perde uma
+        // atualização nem deixa o saldo negativo.
+        const debited = await tx.creditWallet.updateMany({
+          where: { id: wallet.id, balance: { gte: input.unlockCost.value } },
+          data: { balance: { decrement: input.unlockCost.value } },
         });
+        if (debited.count === 0) {
+          throw new InsufficientCreditsError("Saldo de créditos insuficiente");
+        }
 
         const jobUnlock = JobUnlock.create({
           workerId: input.workerId,
@@ -95,7 +113,12 @@ export class PrismaJobUnlockWriter implements JobUnlockWriter {
     } catch (error) {
       if (this.isUniqueConstraintViolation(error)) {
         const existing = await this.prisma.jobUnlock.findUnique({
-          where: { workerId_jobPostingId: { workerId: input.workerId, jobPostingId: input.jobPostingId } },
+          where: {
+            workerId_jobPostingId: {
+              workerId: input.workerId,
+              jobPostingId: input.jobPostingId,
+            },
+          },
         });
         if (existing) {
           return { jobUnlock: this.toDomain(existing), alreadyExisted: true };
@@ -106,7 +129,9 @@ export class PrismaJobUnlockWriter implements JobUnlockWriter {
   }
 
   private isUniqueConstraintViolation(error: unknown): boolean {
-    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+    return (
+      error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"
+    );
   }
 
   private toDomain(record: JobUnlockRecord): JobUnlock {
