@@ -17,6 +17,7 @@ Esta fase foi implementada e validada localmente (Postgres via Docker, sem acess
 - Conta suspensa (empresa ou trabalhador) não faz login (403) e tokens já emitidos param de valer na hora (401): os guards reconsultam o status a cada requisição autenticada.
 - Jobs agendados (reconciliação, expiração de cobranças e de vagas) usam um lease no Postgres (tabela `JobLease`): com várias réplicas, cada job roda em uma só por vez.
 - `TRUST_PROXY_HOPS` para o rate limit enxergar o IP real do cliente atrás de load balancer.
+- Imagens Docker da API e do frontend (`apps/api/Dockerfile`, `apps/web/Dockerfile`), buildadas no CI junto com um smoke test da imagem da API contra um Postgres real (ver seção 7).
 
 **Depende de acesso a infraestrutura real, não implementável nesta sessão:**
 
@@ -79,3 +80,37 @@ O script confirma: a API está no ar, conectou no banco (via `/credit-packages`)
 - **Banco de dados:** migrations do Prisma são aditivas por padrão neste projeto (nenhuma migration até agora remove coluna ou tabela). Antes de qualquer migration que remova ou renomeie algo, faça backup do banco e tenha o `migration.sql` de reversão pronto — o Prisma não gera rollback automático.
 - **Se o problema for na integração Pix** (ex.: certificado expirado, credencial revogada), a aplicação continua funcionando para todo o resto (cadastro, vagas, moderação, desbloqueio de vagas já pagas) — apenas a compra de novos créditos fica indisponível. Comunique isso claramente no lugar de tirar o sistema inteiro do ar.
 - **Critério para reverter um deploy:** taxa de erro 5xx acima do normal por mais de alguns minutos, ou falha nos smoke tests pós-deploy (seção 5).
+
+## 7. Deploy com Docker
+
+As duas imagens são buildadas a partir da **raiz do monorepo** (o lockfile e o tsconfig base ficam lá):
+
+```bash
+docker build -f apps/api/Dockerfile -t eteronhub-api:<versão> .
+docker build -f apps/web/Dockerfile --build-arg NEXT_PUBLIC_API_URL=https://api.eteronhub.com -t eteronhub-web:<versão> .
+```
+
+- **API** (porta 3000, `HEALTHCHECK` em `/health`): recebe toda a configuração por variável de ambiente em runtime (seção 2). Já vem com `NODE_ENV=production`, então recusa subir sem `JWT_SECRET` forte e `CORS_ORIGIN` válido — o erro lista o que falta.
+- **Frontend** (porta 3002): `NEXT_PUBLIC_API_URL` é embutido no bundle durante o build, não lido em runtime. Homologação e produção precisam de imagens separadas; o build falha se o argumento não for passado.
+- Os dois processos rodam como usuário `node`, não root.
+
+**Ordem de um release:**
+
+1. Build e publicação das imagens no registry (tag imutável por versão, para permitir o rollback da seção 6).
+2. Migrations, uma vez, com a imagem nova da API — o container **não** migra ao subir:
+   ```bash
+   docker run --rm -e DATABASE_URL=... eteronhub-api:<versão> ./node_modules/.bin/prisma migrate deploy
+   ```
+3. Troca das réplicas da API, depois do frontend.
+4. Smoke test (seção 5).
+
+**Primeiro deploy em um banco que já tem dados:** a migration `20261120213000_credit_transaction_payment_unique` cria um índice único em `CreditTransaction.relatedPaymentId` e falha se já houver crédito duplicado para o mesmo pagamento. Antes de aplicar, confira:
+
+```sql
+select "relatedPaymentId", count(*) from "CreditTransaction"
+where "relatedPaymentId" is not null group by 1 having count(*) > 1;
+```
+
+Se aparecer alguma linha, é crédito concedido em dobro — trate como incidente (estorno do excedente no saldo) antes de migrar.
+
+**Admin inicial:** o seed (`prisma/seed.ts`) roda com `ts-node` e não está na imagem de produção. Rode-o uma vez a partir de um checkout do repositório, apontando `DATABASE_URL` para o banco de produção (`pnpm --filter api run prisma:seed`), e troque a senha logo em seguida (seção 3).

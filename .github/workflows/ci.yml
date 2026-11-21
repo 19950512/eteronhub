@@ -22,6 +22,45 @@ jobs:
       - run: pnpm --filter api run prisma:generate
       - run: pnpm lint
       - run: pnpm test
+      - run: pnpm build
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.invalid
+
+  docker:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: eteron
+          POSTGRES_PASSWORD: eteron
+          POSTGRES_DB: eteronhub
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U eteron"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://eteron:eteron@localhost:5432/eteronhub?schema=public
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: docker build -f apps/api/Dockerfile -t eteronhub-api:ci .
+      - run: >-
+          docker build -f apps/web/Dockerfile
+          --build-arg NEXT_PUBLIC_API_URL=https://api.example.invalid
+          -t eteronhub-web:ci .
+
+      - name: Migrations e smoke test na imagem da api
+        run: |
+          docker run --rm --network host -e DATABASE_URL eteronhub-api:ci ./node_modules/.bin/prisma migrate deploy
+          docker run -d --name api --network host -e DATABASE_URL \
+            -e JWT_SECRET="$(openssl rand -base64 48)" -e CORS_ORIGIN=https://app.example.invalid \
+            eteronhub-api:ci
+          for i in $(seq 1 30); do curl -fs http://localhost:3000/health && break; sleep 1; done
+          node apps/api/scripts/smoke-test.mjs || (docker logs api; exit 1)
 
   integration:
     runs-on: ubuntu-latest
