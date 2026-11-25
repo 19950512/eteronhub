@@ -114,3 +114,27 @@ where "relatedPaymentId" is not null group by 1 having count(*) > 1;
 Se aparecer alguma linha, é crédito concedido em dobro — trate como incidente (estorno do excedente no saldo) antes de migrar.
 
 **Admin inicial:** o seed (`prisma/seed.ts`) roda com `ts-node` e não está na imagem de produção. Rode-o uma vez a partir de um checkout do repositório, apontando `DATABASE_URL` para o banco de produção (`pnpm --filter api run prisma:seed`), e troque a senha logo em seguida (seção 3).
+
+## 8. Produção na VPS (64.23.245.134)
+
+O EteronHub roda na VPS compartilhada, atrás do `nginx-proxy` mantido no repositório `nginx-64.23.245.134` (config em `dominios/eteronhub/eteronhub.com.br.conf`):
+
+- `https://eteronhub.com.br` → `eteronhub-web:3002`; `https://eteronhub.com.br/api/*` → `eteronhub-api:3000` (o nginx remove o prefixo `/api`). `www` redireciona para o domínio sem `www`.
+- O domínio está no Cloudflare (proxy ligado, SSL "Full"). O nginx resolve o IP real pelo `CF-Connecting-IP` e a API usa `TRUST_PROXY_HOPS=1`.
+- Postgres próprio (`eteronhub-db`) numa rede interna do compose, sem porta publicada; dados no volume `eteronhub_eteronhub-db`.
+- Compose em `deploy/vps/docker-compose.yml`; segredos em `deploy/vps/.env` (chmod 600, só na VPS — modelo em `deploy/vps/.env.example`).
+
+**Deploy de uma nova versão** (usuário `deploy`, a partir de `~/eteronhub`):
+
+```bash
+git pull --ff-only
+C="docker compose -f deploy/vps/docker-compose.yml"
+# why: a VPS tem pouca memória livre; buildar uma imagem por vez evita swap pesado nos outros sistemas.
+$C build eteronhub-api && $C build eteronhub-web
+$C run --rm --no-deps eteronhub-api ./node_modules/.bin/prisma migrate deploy
+$C up -d
+```
+
+**Primeira instalação** (já feita uma vez): criar `deploy/vps/.env`, subir só o banco (`$C up -d eteronhub-db`), aplicar as migrations, rodar o seed do admin e dos pacotes de crédito com `$C run --rm --no-deps eteronhub-api node prisma/seed.ts` e então `$C up -d`.
+
+**Pix:** com as variáveis `BANCO_INTER_*` vazias a aplicação funciona, mas a compra de créditos falha. Para ativar, preencha o `.env`, monte os certificados mTLS no `eteronhub-api` (volume somente leitura) e registre no Inter o webhook `https://eteronhub.com.br/api/webhooks/banco-inter`.

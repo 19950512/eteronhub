@@ -1,0 +1,92 @@
+# why: produção na VPS compartilhada (64.23.245.134), atrás do nginx-proxy do repo
+# nginx-64.23.245.134. Uso: `docker compose -f deploy/vps/docker-compose.yml ...`
+# a partir da raiz do clone; passo a passo em docs/05-operacao-e-lancamento.md, seção 8.
+# invariant: deploy/vps/.env (0600, fora do git) traz POSTGRES_PASSWORD, JWT_SECRET,
+# ADMIN_* e BANCO_INTER_*; nunca versionar.
+name: eteronhub
+
+x-hardening: &hardening
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  eteronhub-db:
+    image: postgres:16-alpine
+    container_name: eteronhub-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: eteronhub
+      POSTGRES_DB: eteronhub
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD em deploy/vps/.env}
+    volumes:
+      - eteronhub-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eteronhub -d eteronhub"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 256m
+    # why: só a API fala com o banco; ele não entra na rede do nginx nem publica porta.
+    networks:
+      - internal
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  eteronhub-api:
+    <<: *hardening
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    image: eteronhub-api:latest
+    container_name: eteronhub-api
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://eteronhub:${POSTGRES_PASSWORD}@eteronhub-db:5432/eteronhub?schema=public
+      CORS_ORIGIN: https://eteronhub.com.br
+      # why: o único salto confiável é o nginx-proxy, que já resolve o IP real
+      # (CF-Connecting-IP) e manda X-Forwarded-For com um valor só.
+      TRUST_PROXY_HOPS: "1"
+    depends_on:
+      eteronhub-db:
+        condition: service_healthy
+    mem_limit: 384m
+    networks:
+      - internal
+      - nginx_web
+
+  eteronhub-web:
+    <<: *hardening
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      args:
+        # hazard: embutido no bundle no build; mudar o domínio exige rebuild da imagem.
+        NEXT_PUBLIC_API_URL: https://eteronhub.com.br/api
+    image: eteronhub-web:latest
+    container_name: eteronhub-web
+    mem_limit: 256m
+    networks:
+      - nginx_web
+
+volumes:
+  eteronhub-db:
+
+networks:
+  internal:
+  nginx_web:
+    external: true
