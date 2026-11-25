@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
-import * as bcrypt from "bcryptjs";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -33,7 +33,9 @@ async function main(): Promise<void> {
     });
   }
 
-  console.log(`Pacotes de créditos garantidos: ${creditPackages.map((p) => p.id).join(", ")}`);
+  console.log(
+    `Pacotes de créditos garantidos: ${creditPackages.map((p) => p.id).join(", ")}`,
+  );
 }
 
 main()
