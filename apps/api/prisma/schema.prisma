@@ -13,14 +13,32 @@ enum CompanyStatus {
 }
 
 model Company {
-  id           String        @id @default(uuid())
-  cnpj         String        @unique
+  id           String         @id @default(uuid())
+  cnpj         String         @unique
   razaoSocial  String
   nomeFantasia String?
-  email        String        @unique
+  email        String         @unique
   passwordHash String
-  status       CompanyStatus @default(ACTIVE)
-  createdAt    DateTime      @default(now())
+  status       CompanyStatus  @default(ACTIVE)
+  sector       CompanySector?
+  city         String?
+  state        String?
+  whatsapp     String?
+  website      String?
+  createdAt    DateTime       @default(now())
+}
+
+enum CompanySector {
+  METALURGIA
+  ESTRUTURA_METALICA
+  CALDEIRARIA
+  SOLDAGEM
+  USINAGEM
+  FUNDICAO
+  SERRALHERIA
+  MANUTENCAO_INDUSTRIAL
+  AUTOMACAO
+  OUTROS
 }
 
 enum WorkerStatus {
@@ -29,13 +47,38 @@ enum WorkerStatus {
 }
 
 model Worker {
-  id           String       @id @default(uuid())
-  cpf          String       @unique
+  id           String          @id @default(uuid())
+  cpf          String          @unique
   nome         String
-  email        String       @unique
+  email        String          @unique
   passwordHash String
-  status       WorkerStatus @default(ACTIVE)
-  createdAt    DateTime     @default(now())
+  status       WorkerStatus    @default(ACTIVE)
+  phone        String?
+  bio          String?
+  segments     WorkerSegment[] @default([])
+  // why: lista curta (máx. 20) sempre lida e gravada junto do perfil, sem
+  // consulta por software — JSON evita uma tabela só para isso.
+  softwares    Json            @default("[]")
+  createdAt    DateTime        @default(now())
+}
+
+enum WorkerSegment {
+  TORRES
+  GALPOES
+  ESTRUTURAS_RESIDENCIAIS
+  ESTRUTURAS_COMERCIAIS
+  ESTRUTURAS_INDUSTRIAIS
+  PONTES_VIADUTOS
+  PLATAFORMAS
+  ESCADAS_CORRIMAOS
+  PORTOES_GRADES
+  COBERTURA_METALICA
+  MEZANINO
+  TUBULACAO
+  CALDEIRARIA
+  MONTAGEM_INDUSTRIAL
+  MANUTENCAO_INDUSTRIAL
+  OUTRO
 }
 
 model Admin {

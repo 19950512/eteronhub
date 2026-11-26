@@ -709,3 +709,50 @@ a.list-item:hover .list-item-title {
   width: 16px;
   height: 16px;
 }
+
+.chip-toggle {
+  min-height: var(--touch);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.chip-toggle[aria-pressed="true"] {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+}
+
+.chip-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.chip-remove {
+  display: inline-flex;
+  margin-right: calc(-1 * var(--space-2));
+  padding: 4px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.data-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.data-list dt {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.data-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

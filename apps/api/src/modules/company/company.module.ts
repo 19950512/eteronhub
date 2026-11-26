@@ -5,17 +5,27 @@ import { RegisterCompanyUseCase } from "./application/use-cases/register-company
 import { SuspendCompanyUseCase } from "./application/use-cases/suspend-company.use-case";
 import { COMPANY_REPOSITORY } from "./company.tokens";
 import { CompanyController } from "./company.controller";
+import { CompanyProfileController } from "./company-profile.controller";
+import { GetCompanyProfileUseCase } from "./application/use-cases/get-company-profile.use-case";
+import { UpdateCompanyProfileUseCase } from "./application/use-cases/update-company-profile.use-case";
 import { PrismaCompanyRepository } from "./infra/persistence/prisma-company.repository";
 
 @Module({
-  controllers: [CompanyController],
+  controllers: [CompanyController, CompanyProfileController],
   providers: [
     { provide: COMPANY_REPOSITORY, useClass: PrismaCompanyRepository },
     RegisterCompanyUseCase,
     SuspendCompanyUseCase,
     ReactivateCompanyUseCase,
     AuthenticateCompanyUseCase,
+    GetCompanyProfileUseCase,
+    UpdateCompanyProfileUseCase,
   ],
-  exports: [COMPANY_REPOSITORY, SuspendCompanyUseCase, ReactivateCompanyUseCase, AuthenticateCompanyUseCase],
+  exports: [
+    COMPANY_REPOSITORY,
+    SuspendCompanyUseCase,
+    ReactivateCompanyUseCase,
+    AuthenticateCompanyUseCase,
+  ],
 })
 export class CompanyModule {}

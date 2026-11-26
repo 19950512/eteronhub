@@ -2,17 +2,17 @@
 
 ## 1. Stack
 
-| Camada | Tecnologia |
-|---|---|
-| Backend | Node.js + **NestJS** (TypeScript) |
-| Frontend (web público: empresa + trabalhador + admin) | **Next.js** (React, TypeScript) |
-| Banco de dados | PostgreSQL |
-| ORM | Prisma |
-| Autenticação | JWT (access + refresh token), guards por role (`COMPANY`, `WORKER`, `ADMIN`) |
-| Fila/Jobs agendados | `@nestjs/schedule` (cron) para expiração de vagas e cobranças Pix; considerar BullMQ + Redis se o volume de jobs assíncronos crescer |
-| Pagamento | API do Banco Inter (Pix — cobrança imediata + webhook de confirmação), integração direta via porta `PixPaymentGateway` |
-| Infra/Deploy | Docker + docker-compose para dev; a definir provedor de hospedagem (Railway/AWS/Fly.io) |
-| Testes | Jest (unit — Domain/Application isolados de framework; integração — casos de uso com repositórios reais/testcontainers) |
+| Camada                                                | Tecnologia                                                                                                                           |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Backend                                               | Node.js + **NestJS** (TypeScript)                                                                                                    |
+| Frontend (web público: empresa + trabalhador + admin) | **Next.js** (React, TypeScript)                                                                                                      |
+| Banco de dados                                        | PostgreSQL                                                                                                                           |
+| ORM                                                   | Prisma                                                                                                                               |
+| Autenticação                                          | JWT (access + refresh token), guards por role (`COMPANY`, `WORKER`, `ADMIN`)                                                         |
+| Fila/Jobs agendados                                   | `@nestjs/schedule` (cron) para expiração de vagas e cobranças Pix; considerar BullMQ + Redis se o volume de jobs assíncronos crescer |
+| Pagamento                                             | API do Banco Inter (Pix — cobrança imediata + webhook de confirmação), integração direta via porta `PixPaymentGateway`               |
+| Infra/Deploy                                          | Docker + docker-compose para dev; a definir provedor de hospedagem (Railway/AWS/Fly.io)                                              |
+| Testes                                                | Jest (unit — Domain/Application isolados de framework; integração — casos de uso com repositórios reais/testcontainers)              |
 
 Justificativa do NestJS: seu módulo de DI nativo mapeia quase 1:1 para a camada
 **Container** da Clean Architecture (cada `*.module.ts` é o ponto onde interfaces de
@@ -156,6 +156,7 @@ dependência do NestJS para dentro do Domain — a interface do repositório con
 ## 6. Contratos de API (REST) — visão geral dos principais endpoints
 
 ### Auth
+
 - `POST /auth/company/register`
 - `POST /auth/company/login`
 - `POST /auth/worker/register`
@@ -164,8 +165,9 @@ dependência do NestJS para dentro do Domain — a interface do repositório con
 - `POST /auth/refresh`
 
 ### Empresa
-- `GET /companies/me`
-- `PATCH /companies/me`
+
+- `GET /companies/me/profile`
+- `PUT /companies/me/profile` (nome fantasia, setor, cidade/UF, WhatsApp, site — substitui o perfil inteiro; nunca exposto ao trabalhador)
 - `POST /job-postings` (cria em `DRAFT`)
 - `PATCH /job-postings/:id`
 - `POST /job-postings/:id/submit` (envia para moderação)
@@ -173,6 +175,9 @@ dependência do NestJS para dentro do Domain — a interface do repositório con
 - `GET /job-postings/me` (todas as vagas da empresa logada, com status)
 
 ### Trabalhador
+
+- `GET /workers/me/profile`
+- `PUT /workers/me/profile` (telefone, "sobre mim", segmentos de atuação, softwares — substitui o perfil inteiro)
 - `GET /job-postings/public` (listagem anonimizada, filtros: categoria, cidade, UF)
 - `GET /job-postings/public/:id`
 - `GET /wallet/me`
@@ -184,9 +189,11 @@ dependência do NestJS para dentro do Domain — a interface do repositório con
 - `GET /job-unlocks/me`
 
 ### Webhook (público, sem JWT)
+
 - `POST /webhooks/banco-inter/pix`
 
 ### Admin
+
 - `GET /admin/moderation-queue`
 - `POST /admin/job-postings/:id/approve`
 - `POST /admin/job-postings/:id/reject` `{ reason }`
@@ -199,6 +206,7 @@ dependência do NestJS para dentro do Domain — a interface do repositório con
 - `GET /admin/metrics/unlock-conversion`
 
 ## 7. Requisitos Não-Funcionais
+
 - **LGPD**: CPF/CNPJ e dados de contato são dados pessoais/sensíveis — criptografia em
   trânsito (HTTPS obrigatório), controle de acesso rígido (dados de empresa só
   aparecem completos após unlock pago; nunca logar CPF/CNPJ em plaintext em logs de

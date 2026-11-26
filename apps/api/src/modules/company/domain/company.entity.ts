@@ -1,12 +1,24 @@
 import { randomUUID } from "node:crypto";
-import { ConflictError } from "../../../shared-kernel/domain/domain-error";
+import { BrazilianState } from "../../../shared-kernel/domain/brazilian-state.vo";
+import {
+  ConflictError,
+  ValidationError,
+} from "../../../shared-kernel/domain/domain-error";
 import { Cnpj } from "../../../shared-kernel/domain/cnpj.vo";
 import { Email } from "../../../shared-kernel/domain/email.vo";
+import { PhoneNumber } from "../../../shared-kernel/domain/phone-number.vo";
+import { CompanySector } from "./company-sector";
+import { Website } from "./website.vo";
 
 export type CompanyStatus = "ACTIVE" | "SUSPENDED";
 
 export class CompanyAlreadySuspendedError extends ConflictError {}
 export class CompanyNotSuspendedError extends ConflictError {}
+export class InvalidCompanyProfileError extends ValidationError {}
+
+const NOME_FANTASIA_MIN_LENGTH = 2;
+const NOME_FANTASIA_MAX_LENGTH = 100;
+const CITY_MAX_LENGTH = 100;
 
 export interface CompanyProps {
   id: string;
@@ -16,6 +28,37 @@ export interface CompanyProps {
   email: Email;
   passwordHash: string;
   status: CompanyStatus;
+  sector: CompanySector | null;
+  city: string | null;
+  state: BrazilianState | null;
+  whatsapp: PhoneNumber | null;
+  website: Website | null;
+  createdAt: Date;
+}
+
+export interface CompanyProfileInput {
+  nomeFantasia: string | null;
+  sector: CompanySector | null;
+  city: string | null;
+  state: BrazilianState | null;
+  whatsapp: PhoneNumber | null;
+  website: Website | null;
+}
+
+// invariant: visão exclusiva da própria empresa (rota /companies/me). Nada
+// daqui pode ir para a listagem pública — a empresa é anônima para o
+// trabalhador até o desbloqueio, que expõe apenas o nome (ver JobPosting.toUnlockedView).
+export interface CompanyProfileView {
+  id: string;
+  cnpj: string;
+  razaoSocial: string;
+  nomeFantasia: string | null;
+  email: string;
+  sector: CompanySector | null;
+  city: string | null;
+  state: string | null;
+  whatsapp: string | null;
+  website: string | null;
   createdAt: Date;
 }
 
@@ -37,12 +80,47 @@ export class Company {
       email: input.email,
       passwordHash: input.passwordHash,
       status: "ACTIVE",
+      sector: null,
+      city: null,
+      state: null,
+      whatsapp: null,
+      website: null,
       createdAt: new Date(),
     });
   }
 
   static restore(props: CompanyProps): Company {
     return new Company(props);
+  }
+
+  updateProfile(input: CompanyProfileInput): void {
+    const nomeFantasia = input.nomeFantasia?.trim().replace(/\s+/g, " ") || null;
+    if (
+      nomeFantasia &&
+      (nomeFantasia.length < NOME_FANTASIA_MIN_LENGTH ||
+        nomeFantasia.length > NOME_FANTASIA_MAX_LENGTH)
+    ) {
+      throw new InvalidCompanyProfileError(
+        `Nome fantasia deve ter entre ${NOME_FANTASIA_MIN_LENGTH} e ${NOME_FANTASIA_MAX_LENGTH} caracteres`,
+      );
+    }
+
+    const city = input.city?.trim().replace(/\s+/g, " ") || null;
+    if (city && city.length > CITY_MAX_LENGTH) {
+      throw new InvalidCompanyProfileError(
+        `Cidade deve ter no máximo ${CITY_MAX_LENGTH} caracteres`,
+      );
+    }
+    if (Boolean(city) !== Boolean(input.state)) {
+      throw new InvalidCompanyProfileError("Informe a cidade e a UF juntas");
+    }
+
+    this.props.nomeFantasia = nomeFantasia;
+    this.props.sector = input.sector;
+    this.props.city = city;
+    this.props.state = input.state;
+    this.props.whatsapp = input.whatsapp;
+    this.props.website = input.website;
   }
 
   suspend(): void {
@@ -57,6 +135,22 @@ export class Company {
       throw new CompanyNotSuspendedError("Empresa não está suspensa");
     }
     this.props.status = "ACTIVE";
+  }
+
+  toProfileView(): CompanyProfileView {
+    return {
+      id: this.props.id,
+      cnpj: this.props.cnpj.format(),
+      razaoSocial: this.props.razaoSocial,
+      nomeFantasia: this.props.nomeFantasia,
+      email: this.props.email.value,
+      sector: this.props.sector,
+      city: this.props.city,
+      state: this.props.state?.value ?? null,
+      whatsapp: this.props.whatsapp?.value ?? null,
+      website: this.props.website?.value ?? null,
+      createdAt: this.props.createdAt,
+    };
   }
 
   get id(): string {
@@ -85,6 +179,26 @@ export class Company {
 
   get status(): CompanyStatus {
     return this.props.status;
+  }
+
+  get sector(): CompanySector | null {
+    return this.props.sector;
+  }
+
+  get city(): string | null {
+    return this.props.city;
+  }
+
+  get state(): BrazilianState | null {
+    return this.props.state;
+  }
+
+  get whatsapp(): PhoneNumber | null {
+    return this.props.whatsapp;
+  }
+
+  get website(): Website | null {
+    return this.props.website;
   }
 
   get createdAt(): Date {

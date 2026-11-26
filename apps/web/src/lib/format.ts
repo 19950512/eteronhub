@@ -42,3 +42,10 @@ export function formatSalaryRange(range: { min: number; max: number }): string {
   if (range.min === range.max) return formatBRL(range.min);
   return `${formatBRL(range.min)} – ${formatBRL(range.max)}`;
 }
+
+export function formatPhone(digits: string | null): string {
+  if (!digits) return "";
+  if (digits.length === 11) return digits.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+  if (digits.length === 10) return digits.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3");
+  return digits;
+}

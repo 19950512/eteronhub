@@ -45,6 +45,12 @@ export const NAV_ITEMS: Record<Audience, NavItem[]> = {
       shortLabel: "Histórico",
       icon: History,
     },
+    {
+      href: "/painel/perfil",
+      label: "Meu perfil",
+      shortLabel: "Perfil",
+      icon: UserRound,
+    },
   ],
   COMPANY: [
     {
@@ -55,6 +61,12 @@ export const NAV_ITEMS: Record<Audience, NavItem[]> = {
     },
     { href: "/empresa/vagas/nova", label: "Nova vaga", icon: Plus },
     { href: "/vagas", label: "Vagas publicadas", shortLabel: "Publicadas", icon: Search },
+    {
+      href: "/empresa/perfil",
+      label: "Perfil da empresa",
+      shortLabel: "Perfil",
+      icon: Building2,
+    },
   ],
   ADMIN: [
     { href: "/admin", label: "Moderação", icon: ClipboardCheck },

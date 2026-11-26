@@ -1,8 +1,11 @@
 import { CreditAmount } from "../../../../shared-kernel/domain/credit-amount.vo";
 import { Cnpj } from "../../../../shared-kernel/domain/cnpj.vo";
 import { Email } from "../../../../shared-kernel/domain/email.vo";
+import { BrazilianState } from "../../../../shared-kernel/domain/brazilian-state.vo";
+import { PhoneNumber } from "../../../../shared-kernel/domain/phone-number.vo";
 import { CompanyRepository } from "../../../company/application/ports/company-repository.port";
 import { Company } from "../../../company/domain/company.entity";
+import { Website } from "../../../company/domain/website.vo";
 import {
   JobPostingFilter,
   JobPostingRepository,
@@ -92,6 +95,11 @@ function companyFixture(): Company {
     email: Email.create("contato@empresa-teste.com"),
     passwordHash: "hash",
     status: "ACTIVE",
+    sector: "ESTRUTURA_METALICA",
+    city: "São Paulo",
+    state: BrazilianState.create("SP"),
+    whatsapp: PhoneNumber.create("11987654321"),
+    website: Website.create("empresa-teste.com.br"),
     createdAt: new Date(),
   });
 }
@@ -110,7 +118,11 @@ describe("GetJobPostingDetailsForWorkerUseCase", () => {
   });
 
   it("retorna a visão desbloqueada (com nome da empresa e contato) quando já desbloqueou", async () => {
-    const unlock = JobUnlock.create({ workerId: "worker-1", jobPostingId: "job-1", creditsSpent: CreditAmount.of(10) });
+    const unlock = JobUnlock.create({
+      workerId: "worker-1",
+      jobPostingId: "job-1",
+      creditsSpent: CreditAmount.of(10),
+    });
     const useCase = new GetJobPostingDetailsForWorkerUseCase(
       new StubJobUnlockRepository(unlock),
       new StubJobPostingRepository(jobPostingFixture()),
@@ -119,11 +131,35 @@ describe("GetJobPostingDetailsForWorkerUseCase", () => {
 
     const result = await useCase.execute("worker-1", "job-1");
     expect((result as { companyName: string }).companyName).toBe("Empresa Teste");
-    expect((result as { contactInfo: { email: string | null } }).contactInfo.email).toBe("vagas@empresa.com");
+    expect((result as { contactInfo: { email: string | null } }).contactInfo.email).toBe(
+      "vagas@empresa.com",
+    );
+  });
+
+  it("não expõe dados do perfil da empresa (CNPJ, WhatsApp, site) mesmo após o desbloqueio", async () => {
+    const unlock = JobUnlock.create({
+      workerId: "worker-1",
+      jobPostingId: "job-1",
+      creditsSpent: CreditAmount.of(10),
+    });
+    const useCase = new GetJobPostingDetailsForWorkerUseCase(
+      new StubJobUnlockRepository(unlock),
+      new StubJobPostingRepository(jobPostingFixture()),
+      new StubCompanyRepository(companyFixture()),
+    );
+
+    const serialized = JSON.stringify(await useCase.execute("worker-1", "job-1"));
+    expect(serialized).not.toContain("11222333000181");
+    expect(serialized).not.toContain("11987654321");
+    expect(serialized).not.toContain("empresa-teste.com.br");
   });
 
   it("mantém acesso à vaga desbloqueada mesmo depois de encerrada (regra 22)", async () => {
-    const unlock = JobUnlock.create({ workerId: "worker-1", jobPostingId: "job-1", creditsSpent: CreditAmount.of(10) });
+    const unlock = JobUnlock.create({
+      workerId: "worker-1",
+      jobPostingId: "job-1",
+      creditsSpent: CreditAmount.of(10),
+    });
     const useCase = new GetJobPostingDetailsForWorkerUseCase(
       new StubJobUnlockRepository(unlock),
       new StubJobPostingRepository(jobPostingFixture("CLOSED")),
