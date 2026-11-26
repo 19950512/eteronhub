@@ -128,9 +128,6 @@ function LoginForm(): JSX.Element {
           Cadastre-se
         </Link>
       </p>
-      <p className="text-xs text-muted text-center">
-        É da equipe Eteron Hub? <Link href="/admin/login">Acesso administrativo</Link>
-      </p>
     </>
   );
 }
