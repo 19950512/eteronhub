@@ -20,7 +20,7 @@ export default function JobsPage(): JSX.Element {
       />
       <Suspense
         fallback={
-          <div className="grid-3">
+          <div className="job-list">
             <JobCardSkeleton />
             <JobCardSkeleton />
             <JobCardSkeleton />

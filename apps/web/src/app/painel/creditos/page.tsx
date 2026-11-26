@@ -247,9 +247,6 @@ function BuyCredits(): JSX.Element {
           <div className="grid-3">
             {packages.map((pack) => (
               <article className="card package-card" key={pack.id}>
-                <span className="icon-tile">
-                  <Coins aria-hidden="true" />
-                </span>
                 <div className="stack-sm">
                   <h2 className="card-title" style={{ margin: 0 }}>
                     {pack.name}

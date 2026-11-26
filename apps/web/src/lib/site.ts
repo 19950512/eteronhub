@@ -6,6 +6,6 @@ export const SITE_DESCRIPTION =
 // (deploy/vps/docker-compose.yml) para o preview no WhatsApp nunca apontar para localhost.
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://eteronhub.com.br";
 
-export const THEME_COLOR_LIGHT = "#ffffff";
-export const THEME_COLOR_DARK = "#0e1319";
+export const THEME_COLOR_LIGHT = "#f4f1ea";
+export const THEME_COLOR_DARK = "#151311";
 export const BRAND_INK = "#0e1319";

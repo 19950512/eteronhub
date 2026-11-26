@@ -62,7 +62,7 @@ export function JobResults({
 
   if (jobPostings === null) {
     return (
-      <div className="grid-3" role="status" aria-label="Carregando vagas">
+      <div className="job-list" role="status" aria-label="Carregando vagas">
         {Array.from({ length: limit ? Math.min(limit, 3) : 6 }, (_, index) => (
           <JobCardSkeleton key={index} />
         ))}
@@ -88,10 +88,12 @@ export function JobResults({
   const visible = limit ? jobPostings.slice(0, limit) : jobPostings;
 
   return (
-    <div className="grid-3">
+    <ul className="job-list">
       {visible.map((jobPosting) => (
-        <JobCard key={jobPosting.id} jobPosting={jobPosting} />
+        <li key={jobPosting.id}>
+          <JobCard jobPosting={jobPosting} />
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }

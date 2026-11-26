@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, HardHat, RotateCcw, Ban } from "lucide-react";
+import { RotateCcw, Ban } from "lucide-react";
 import { useState } from "react";
 import { Alert } from "../../../components/ui/alert";
 import { Field } from "../../../components/ui/field";
@@ -48,18 +48,12 @@ function AccountActionCard({ kind }: { kind: AccountKind }): JSX.Element {
   const article = kind === "COMPANY" ? "da" : "do";
   const suspend = kind === "COMPANY" ? suspendCompany : suspendWorker;
   const reactivate = kind === "COMPANY" ? reactivateCompany : reactivateWorker;
-  const Icon = kind === "COMPANY" ? Building2 : HardHat;
 
   return (
     <section className="card stack" aria-labelledby={`${kind}-title`}>
-      <div className="cluster">
-        <span className="icon-tile">
-          <Icon aria-hidden="true" />
-        </span>
-        <h2 id={`${kind}-title`} className="card-title" style={{ margin: 0 }}>
-          {kind === "COMPANY" ? "Empresas" : "Trabalhadores"}
-        </h2>
-      </div>
+      <h2 id={`${kind}-title`} className="card-title" style={{ margin: 0 }}>
+        {kind === "COMPANY" ? "Empresas" : "Trabalhadores"}
+      </h2>
       <Field id={`${kind}-id`} label={`ID ${article} ${label}`}>
         <input
           id={`${kind}-id`}

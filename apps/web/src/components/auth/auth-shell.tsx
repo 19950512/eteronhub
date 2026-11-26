@@ -1,4 +1,3 @@
-import { CircleCheck } from "lucide-react";
 import Image from "next/image";
 import type { ReactNode } from "react";
 import type { MarketImage } from "../../assets/images";
@@ -30,22 +29,19 @@ export function AuthShell({
           placeholder="blur"
         />
         <div className="auth-media-text">
-          <h2 style={{ fontSize: "var(--text-3xl)" }}>{headline}</h2>
+          <h2>{headline}</h2>
           <p>{description}</p>
           {highlights.length > 0 && (
-            <ul className="hero-highlights">
+            <ul className="auth-points">
               {highlights.map((highlight) => (
-                <li key={highlight}>
-                  <CircleCheck aria-hidden="true" />
-                  {highlight}
-                </li>
+                <li key={highlight}>{highlight}</li>
               ))}
             </ul>
           )}
         </div>
       </div>
       <div className="auth-panel">
-        <div className="card auth-card">{children}</div>
+        <div className="auth-card">{children}</div>
       </div>
     </div>
   );

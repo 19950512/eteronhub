@@ -16,6 +16,12 @@ renderizados, fica em **`/design-system`** (fora do índice dos buscadores).
 4. **Claro e escuro automáticos.** Cores sempre por token semântico; o tema escuro
    segue `prefers-color-scheme`.
 5. **Texto em pt-BR, código em inglês** (regra do `AGENTS.md`).
+6. **Linha, não sombra.** Estética de chão de fábrica: cantos quase retos (2–4px),
+   divisórias de 1–2px em vez de cards com sombra, fundo cor de papel e neutros
+   quentes (grafite). Evite os clichês de template: rótulo laranja em caixa alta
+   acima de cada título, ícone dentro de quadradinho colorido, grade de cards
+   idênticos, degradês e blur. Listas (vagas, funções, passos) são linhas com
+   régua, não cards.
 
 ## Estrutura
 
@@ -25,7 +31,7 @@ renderizados, fica em **`/design-system`** (fora do índice dos buscadores).
 | `src/styles/base.css`           | Reset, tipografia base, foco visível, utilitários de texto                                                                          |
 | `src/styles/layout.css`         | Container, header, drawer, tab bar, footer, grids                                                                                   |
 | `src/styles/components.css`     | Botões, cards, badges, chips, alertas, formulários, skeleton, estado vazio                                                          |
-| `src/styles/sections.css`       | Composições de página: hero, especialidades, auth, vaga, Pix                                                                        |
+| `src/styles/sections.css`       | Composições de página: home (`intro`, `block`, `trades`, `how`, `closing`), lista de vagas, auth, vaga, Pix                         |
 | `src/styles/utilities.css`      | `stack*` / `cluster*` — **importado por último** para vencer o `display` dos componentes                                            |
 | `src/components/ui/`            | `Alert`, `Field`, `PageHeader`, `EmptyState`, `Spinner`/`PageLoading`, `StatusBadge`                                                |
 | `src/components/brand/logo.tsx` | `Logo` e `LogoMark`                                                                                                                 |
@@ -37,14 +43,17 @@ Regra de ouro: **não use cores hexadecimais nem medidas soltas em componentes.*
 
 ## Tokens principais
 
-- **Ação:** `--color-primary` (Spark 700 `#c2410c` no claro, contraste 5,2:1 com
+- **Ação:** `--color-primary` (Spark 700 `#b5470b` no claro, com texto quase
   branco; Spark 500 com texto escuro no tema escuro).
+- **Régua:** `--color-rule` (traço forte de 1–2px sob o header, cabeçalhos de página
+  e no topo de listas).
 - **Texto:** `--color-text`, `--color-text-muted` (contraste ≥ 4,5:1 sobre
   `--color-surface` e `--color-bg`).
 - **Status:** `--color-success|warning|danger|info` + `-soft` (fundo) e `-border`.
-- **Tipografia:** `--font-display` (Barlow Condensed, títulos) e `--font-sans`
-  (Inter, texto), carregadas via `next/font`. Tamanhos fluidos com `clamp()`
-  (`--text-2xl`, `--text-3xl`, `--text-display`).
+- **Tipografia:** uma família só, **Archivo** variável (eixo `wdth`), via
+  `next/font`. Títulos usam a mesma fonte estreitada (`font-stretch:
+var(--display-stretch)`, peso 800); texto na largura normal. Tamanhos fluidos com
+  `clamp()` (`--text-2xl`, `--text-3xl`, `--text-display`).
 
 ## Componentes (classes)
 
@@ -52,7 +61,8 @@ Regra de ouro: **não use cores hexadecimais nem medidas soltas em componentes.*
 btn-danger-outline | btn-on-dark`, tamanhos `btn-sm | btn-lg`, `btn-block`. Um
   primário por bloco.
 - **Cards:** `card`, `card-interactive` (links), `card-inverse` (destaque escuro),
-  `card-section` (divisão interna).
+  `card-section` (divisão interna). Use só para blocos de ação (formulários, saldo,
+  pacotes); listagens usam `job-list` / `job-row`.
 - **Status de vaga:** sempre `<StatusBadge status={...} />` — o mapeamento fica em
   `lib/format.ts`.
 - **Formulários:** `<Field id label hint optional>` envolvendo o `input`; agrupe com

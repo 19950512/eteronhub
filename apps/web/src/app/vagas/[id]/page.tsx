@@ -44,9 +44,6 @@ function ContactCard({
   return (
     <div className="card stack" id="contato">
       <div className="cluster">
-        <span className="icon-tile">
-          <LockOpen aria-hidden="true" />
-        </span>
         <div>
           <p className="eyebrow" style={{ color: "var(--color-success)" }}>
             Vaga desbloqueada
@@ -177,9 +174,6 @@ export default function JobPostingDetailPage(): JSX.Element {
   const unlockCard = (
     <div className="card stack" id="desbloquear">
       <div className="cluster">
-        <span className="icon-tile">
-          <LockKeyhole aria-hidden="true" />
-        </span>
         <div>
           <p className="eyebrow">Empresa oculta</p>
           <h2 className="card-title" style={{ margin: 0 }}>

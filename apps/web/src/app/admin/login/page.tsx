@@ -1,6 +1,5 @@
 "use client";
 
-import { ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Alert } from "../../../components/ui/alert";
@@ -40,9 +39,6 @@ export default function AdminLoginPage(): JSX.Element {
         style={{ marginTop: 0, alignItems: "stretch", textAlign: "left" }}
       >
         <div className="auth-card-header">
-          <span className="icon-tile icon-tile-lg">
-            <ShieldCheck aria-hidden="true" />
-          </span>
           <h1>Acesso administrativo</h1>
           <p className="text-muted">Área restrita à equipe de moderação do Eteron Hub.</p>
         </div>

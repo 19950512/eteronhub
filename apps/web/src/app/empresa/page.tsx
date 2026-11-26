@@ -99,7 +99,7 @@ function CompanyDashboard(): JSX.Element {
         {jobPostings && jobPostings.length > 0 && (
           <div className="stats-grid">
             {SUMMARY.map((item) => (
-              <div key={item.status} className="card stat">
+              <div key={item.status} className="stat">
                 <span className="stat-value">
                   {jobPostings.filter((j) => j.status === item.status).length}
                 </span>

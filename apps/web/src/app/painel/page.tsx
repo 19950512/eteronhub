@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, History, Plus, Search, Wallet } from "lucide-react";
+import { ArrowRight, Plus, Wallet } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Alert } from "../../components/ui/alert";
@@ -14,19 +14,16 @@ import { formatDate } from "../../lib/format";
 const SHORTCUTS = [
   {
     href: "/vagas",
-    icon: Search,
     title: "Buscar vagas",
     description: "Filtre por cidade e encontre oportunidades abertas.",
   },
   {
     href: "/painel/desbloqueios",
-    icon: History,
     title: "Vagas desbloqueadas",
     description: "Reveja o contato das empresas que você já desbloqueou.",
   },
   {
     href: "/painel/creditos",
-    icon: Wallet,
     title: "Comprar créditos",
     description: "Pague via Pix e use os créditos para desbloquear vagas.",
   },
@@ -103,9 +100,6 @@ function WorkerDashboard(): JSX.Element {
               href={shortcut.href}
               className="card card-interactive stack"
             >
-              <span className="icon-tile">
-                <shortcut.icon aria-hidden="true" />
-              </span>
               <div className="stack-sm">
                 <h3>{shortcut.title}</h3>
                 <p className="text-sm text-muted">{shortcut.description}</p>

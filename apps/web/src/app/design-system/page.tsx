@@ -157,14 +157,14 @@ export default function DesignSystemPage(): JSX.Element {
       <section className="ds-section" aria-labelledby="ds-tipografia">
         <h2 id="ds-tipografia">Tipografia</h2>
         <p className="text-muted">
-          Títulos em <strong>Barlow Condensed</strong> (industrial, compacta, ótima em
-          telas pequenas). Texto em <strong>Inter</strong>. Tamanhos fluidos com{" "}
-          <code>clamp()</code>.
+          Uma família só, <strong>Archivo</strong>: títulos estreitados pelo eixo de
+          largura (<code>font-stretch</code>) em peso 800, texto na largura normal.
+          Tamanhos fluidos com <code>clamp()</code>.
         </p>
         <div className="card stack">
           <p
-            className="hero-title font-display"
-            style={{ fontSize: "var(--text-display)", fontWeight: 700 }}
+            className="intro-title font-display"
+            style={{ fontSize: "var(--text-display)" }}
           >
             Display
           </p>
@@ -314,9 +314,11 @@ export default function DesignSystemPage(): JSX.Element {
 
       <section className="ds-section" aria-labelledby="ds-cards">
         <h2 id="ds-cards">Cards</h2>
-        <div className="grid-3">
+        <div className="job-list">
           <JobCard jobPosting={SAMPLE_JOB} />
           <JobCardSkeleton />
+        </div>
+        <div className="grid-3">
           <div className="card card-inverse stack">
             <span className="stat-label" style={{ color: "var(--steel-300)" }}>
               Saldo de créditos

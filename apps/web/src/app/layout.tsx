@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Barlow_Condensed, Inter } from "next/font/google";
+import { Archivo } from "next/font/google";
 import type { ReactNode } from "react";
 import { Footer } from "../components/footer";
 import { Header } from "../components/header";
@@ -15,11 +15,12 @@ import {
 } from "../lib/site";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
-const barlow = Barlow_Condensed({
+// why: o eixo wdth permite usar a mesma família estreitada nos títulos
+// (font-stretch em tokens.css) sem baixar uma segunda fonte.
+const archivo = Archivo({
   subsets: ["latin"],
-  weight: ["600", "700"],
-  variable: "--font-barlow",
+  axes: ["wdth"],
+  variable: "--font-archivo",
   display: "swap",
 });
 
@@ -50,7 +51,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="pt-BR" className={`${inter.variable} ${barlow.variable}`}>
+    <html lang="pt-BR" className={archivo.variable}>
       <body>
         <a className="skip-link" href="#conteudo">
           Pular para o conteúdo

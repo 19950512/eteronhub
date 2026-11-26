@@ -1,4 +1,3 @@
-import { WifiOff } from "lucide-react";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -12,9 +11,9 @@ export default function OfflinePage(): JSX.Element {
   return (
     <div className="center-screen">
       <div>
-        <span className="icon-tile icon-tile-lg">
-          <WifiOff aria-hidden="true" />
-        </span>
+        <p className="code-mark" aria-hidden="true">
+          Sem sinal
+        </p>
         <h1>Você está sem conexão</h1>
         <p className="text-muted">
           Verifique o Wi-Fi ou os dados móveis. Assim que a internet voltar, é só tentar
