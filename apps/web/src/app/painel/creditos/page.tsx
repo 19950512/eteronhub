@@ -278,10 +278,7 @@ function BuyCredits(): JSX.Element {
             size={18}
             style={{ flex: "none", marginTop: 2 }}
           />
-          <span>
-            Pagamento processado pelo Banco Inter. Os créditos entram na carteira assim
-            que o Pix é confirmado.
-          </span>
+          <span>Os créditos entram na carteira assim que o Pix é confirmado.</span>
         </div>
       </div>
     </div>

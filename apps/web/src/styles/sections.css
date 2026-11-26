@@ -16,7 +16,7 @@
   .intro-grid {
     grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
     gap: var(--space-12);
-    align-items: end;
+    align-items: center;
   }
 }
 
@@ -28,10 +28,9 @@
 
 .intro-title {
   font-size: var(--text-display);
-  line-height: 0.92;
-  letter-spacing: -0.01em;
-  text-transform: uppercase;
-  max-width: 14ch;
+  line-height: 1;
+  letter-spacing: -0.005em;
+  max-width: 16ch;
 }
 
 .intro-lead {
@@ -236,7 +235,7 @@
   font-family: var(--font-display);
   font-stretch: var(--display-stretch);
   font-size: var(--text-2xl);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.05;
 }
 
@@ -300,7 +299,7 @@
   font-family: var(--font-display);
   font-stretch: var(--display-stretch);
   font-size: var(--text-2xl);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
   color: var(--color-accent);
 }
@@ -347,9 +346,8 @@
 
 .closing h2 {
   font-size: var(--text-display);
-  line-height: 0.95;
-  text-transform: uppercase;
-  max-width: 14ch;
+  line-height: 1.02;
+  max-width: 16ch;
 }
 
 .closing p {
@@ -513,7 +511,7 @@ a.job-row:hover .job-row-cost svg {
   font-family: var(--font-display);
   font-stretch: var(--display-stretch);
   font-size: var(--text-2xl);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .prose {
@@ -584,12 +582,12 @@ a.job-row:hover .job-row-cost svg {
   gap: var(--space-2);
   font-family: var(--font-display);
   font-stretch: var(--display-stretch);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1;
 }
 
 .balance-value strong {
-  font-size: clamp(3.5rem, 2rem + 6vw, 6rem);
+  font-size: clamp(2.75rem, 2rem + 3vw, 4rem);
 }
 
 .balance-value span {
@@ -609,12 +607,12 @@ a.job-row:hover .job-row-cost svg {
   gap: var(--space-2);
   font-family: var(--font-display);
   font-stretch: var(--display-stretch);
-  font-weight: 800;
+  font-weight: 700;
   font-size: var(--text-xl);
 }
 
 .package-credits strong {
-  font-size: var(--text-display);
+  font-size: var(--text-3xl);
   line-height: 0.9;
 }
 
@@ -729,7 +727,6 @@ a.job-row:hover .job-row-cost svg {
 
   .auth-media-text h2 {
     font-size: var(--text-3xl);
-    text-transform: uppercase;
   }
 
   .auth-media-text p {
@@ -797,10 +794,9 @@ a.job-row:hover .job-row-cost svg {
 .code-mark {
   font-family: var(--font-display);
   font-stretch: var(--display-stretch);
-  font-size: clamp(5rem, 3rem + 10vw, 9rem);
-  font-weight: 800;
-  line-height: 0.85;
-  text-transform: uppercase;
+  font-size: clamp(3.5rem, 2.5rem + 5vw, 5.5rem);
+  font-weight: 700;
+  line-height: 0.9;
   color: var(--color-accent);
 }
 

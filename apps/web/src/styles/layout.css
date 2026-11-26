@@ -220,7 +220,7 @@
   font-family: var(--font-display);
   font-stretch: var(--display-stretch);
   font-size: var(--text-xl);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .drawer-nav .nav-link svg {

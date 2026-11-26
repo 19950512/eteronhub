@@ -62,7 +62,6 @@ export function Footer(): JSX.Element {
           <span>
             © {new Date().getFullYear()} Eteron Hub. Todos os direitos reservados.
           </span>
-          <span>Pagamentos via Pix · Banco Inter</span>
         </div>
       </div>
     </footer>

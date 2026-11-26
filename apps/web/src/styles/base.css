@@ -33,7 +33,7 @@ h4 {
   margin: 0;
   font-family: var(--font-display);
   font-stretch: var(--display-stretch);
-  font-weight: 800;
+  font-weight: 700;
   line-height: var(--leading-tight);
   letter-spacing: -0.005em;
   text-wrap: balance;
