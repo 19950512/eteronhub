@@ -744,3 +744,41 @@ a.list-item:hover .list-item-title {
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+.check {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: var(--space-3);
+  align-items: start;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.check input {
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.consent-fields {
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+}
+
+.privacy-heading {
+  font-family: var(--font-sans);
+  font-stretch: 100%;
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+.deletion-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-8);
+  border: 1px solid var(--color-danger-border);
+  background: var(--color-danger-soft);
+}

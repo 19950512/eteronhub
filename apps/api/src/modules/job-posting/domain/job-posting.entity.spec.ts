@@ -1,6 +1,10 @@
 import { CreditAmount } from "../../../shared-kernel/domain/credit-amount.vo";
 import { ContactInfo } from "./contact-info.vo";
-import { InvalidJobPostingStateError, JobPosting, MissingRejectionReasonError } from "./job-posting.entity";
+import {
+  InvalidJobPostingStateError,
+  JobPosting,
+  MissingRejectionReasonError,
+} from "./job-posting.entity";
 import { SalaryRange } from "./salary-range.vo";
 
 function createDraft(): JobPosting {
@@ -71,7 +75,9 @@ describe("JobPosting", () => {
     const expiresAt = new Date(Date.now() + 1000);
     jobPosting.approve(new Date(), expiresAt);
 
-    expect(() => jobPosting.expire(new Date(expiresAt.getTime() - 1))).toThrow(InvalidJobPostingStateError);
+    expect(() => jobPosting.expire(new Date(expiresAt.getTime() - 1))).toThrow(
+      InvalidJobPostingStateError,
+    );
 
     jobPosting.expire(new Date(expiresAt.getTime() + 1));
     expect(jobPosting.status).toBe("EXPIRED");
@@ -79,7 +85,9 @@ describe("JobPosting", () => {
 
   it("rejeita transições inválidas", () => {
     const jobPosting = createDraft();
-    expect(() => jobPosting.approve(new Date(), new Date())).toThrow(InvalidJobPostingStateError);
+    expect(() => jobPosting.approve(new Date(), new Date())).toThrow(
+      InvalidJobPostingStateError,
+    );
     expect(() => jobPosting.close()).toThrow(InvalidJobPostingStateError);
   });
 
@@ -98,5 +106,36 @@ describe("JobPosting", () => {
         unlockCost: CreditAmount.of(20),
       }),
     ).toThrow(InvalidJobPostingStateError);
+  });
+
+  describe("withdrawForCompanyDeletion", () => {
+    it.each([
+      ["DRAFT", (job: JobPosting) => job],
+      ["IN_MODERATION", (job: JobPosting) => (job.submitForModeration(), job)],
+      [
+        "PUBLISHED",
+        (job: JobPosting) => {
+          job.submitForModeration();
+          job.approve(new Date("2026-01-01T00:00:00Z"), new Date("2026-01-31T00:00:00Z"));
+          return job;
+        },
+      ],
+    ])("encerra uma vaga %s", (_status, prepare) => {
+      const jobPosting = prepare(createDraft());
+      expect(jobPosting.withdrawForCompanyDeletion()).toBe(true);
+      expect(jobPosting.status).toBe("CLOSED");
+    });
+
+    it("não mexe em vaga já encerrada", () => {
+      const jobPosting = createDraft();
+      jobPosting.submitForModeration();
+      jobPosting.approve(
+        new Date("2026-01-01T00:00:00Z"),
+        new Date("2026-01-31T00:00:00Z"),
+      );
+      jobPosting.close();
+      expect(jobPosting.withdrawForCompanyDeletion()).toBe(false);
+      expect(jobPosting.status).toBe("CLOSED");
+    });
   });
 });

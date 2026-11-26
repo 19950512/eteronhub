@@ -6,6 +6,10 @@ import { useState, type FormEvent } from "react";
 import { marketImages } from "../../../assets/images";
 import { AuthShell } from "../../../components/auth/auth-shell";
 import { Alert } from "../../../components/ui/alert";
+import {
+  EMPTY_LEGAL_CONSENT,
+  LegalConsentFields,
+} from "../../../components/legal/legal-consent-fields";
 import { Field } from "../../../components/ui/field";
 import { Spinner } from "../../../components/ui/spinner";
 import { registerCompany } from "../../../lib/api/auth";
@@ -20,6 +24,7 @@ export default function RegisterCompanyPage(): JSX.Element {
     email: "",
     password: "",
   });
+  const [consent, setConsent] = useState(EMPTY_LEGAL_CONSENT);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -28,7 +33,11 @@ export default function RegisterCompanyPage(): JSX.Element {
     setSubmitting(true);
     setError(null);
     try {
-      await registerCompany({ ...form, nomeFantasia: form.nomeFantasia || undefined });
+      await registerCompany({
+        ...form,
+        nomeFantasia: form.nomeFantasia || undefined,
+        ...consent,
+      });
       router.push("/login?cadastro=empresa");
     } catch (err) {
       setError(
@@ -116,6 +125,12 @@ export default function RegisterCompanyPage(): JSX.Element {
           />
         </Field>
 
+        <LegalConsentFields
+          value={consent}
+          onChange={setConsent}
+          adultLabel="Tenho 18 anos ou mais e posso representar esta empresa"
+        />
+
         {error && <Alert tone="error">{error}</Alert>}
 
         <button
@@ -126,10 +141,6 @@ export default function RegisterCompanyPage(): JSX.Element {
           {submitting && <Spinner />}
           {submitting ? "Cadastrando..." : "Criar conta da empresa"}
         </button>
-        <p className="text-xs text-muted text-center">
-          Ao se cadastrar, você concorda com a nossa{" "}
-          <Link href="/politica-de-privacidade">Política de Privacidade</Link>.
-        </p>
       </form>
       <p className="text-sm text-muted text-center">
         Já tem conta? <Link href="/login">Entrar</Link>

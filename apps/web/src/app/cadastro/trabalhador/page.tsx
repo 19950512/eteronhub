@@ -6,6 +6,10 @@ import { useState, type FormEvent } from "react";
 import { marketImages } from "../../../assets/images";
 import { AuthShell } from "../../../components/auth/auth-shell";
 import { Alert } from "../../../components/ui/alert";
+import {
+  EMPTY_LEGAL_CONSENT,
+  LegalConsentFields,
+} from "../../../components/legal/legal-consent-fields";
 import { Field } from "../../../components/ui/field";
 import { Spinner } from "../../../components/ui/spinner";
 import { registerWorker } from "../../../lib/api/auth";
@@ -14,6 +18,7 @@ import { ApiRequestError } from "../../../lib/api/client";
 export default function RegisterWorkerPage(): JSX.Element {
   const router = useRouter();
   const [form, setForm] = useState({ cpf: "", nome: "", email: "", password: "" });
+  const [consent, setConsent] = useState(EMPTY_LEGAL_CONSENT);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -22,7 +27,7 @@ export default function RegisterWorkerPage(): JSX.Element {
     setSubmitting(true);
     setError(null);
     try {
-      await registerWorker(form);
+      await registerWorker({ ...form, ...consent });
       router.push("/login?cadastro=trabalhador");
     } catch (err) {
       setError(
@@ -98,6 +103,12 @@ export default function RegisterWorkerPage(): JSX.Element {
           />
         </Field>
 
+        <LegalConsentFields
+          value={consent}
+          onChange={setConsent}
+          adultLabel="Tenho 18 anos ou mais"
+        />
+
         {error && <Alert tone="error">{error}</Alert>}
 
         <button
@@ -108,10 +119,6 @@ export default function RegisterWorkerPage(): JSX.Element {
           {submitting && <Spinner />}
           {submitting ? "Cadastrando..." : "Criar minha conta"}
         </button>
-        <p className="text-xs text-muted text-center">
-          Ao se cadastrar, você concorda com a nossa{" "}
-          <Link href="/politica-de-privacidade">Política de Privacidade</Link>.
-        </p>
       </form>
       <p className="text-sm text-muted text-center">
         Já tem conta? <Link href="/login">Entrar</Link>

@@ -1,6 +1,14 @@
+import {
+  ConsentEntry,
+  ConsentLog,
+} from "../../../../shared-kernel/application/consent-log.port";
 import { PasswordHasher } from "../../../../shared-kernel/application/password-hasher.port";
 import { Cnpj } from "../../../../shared-kernel/domain/cnpj.vo";
 import { Email } from "../../../../shared-kernel/domain/email.vo";
+import {
+  LegalConsentRequiredError,
+  TERMS_OF_USE_VERSION,
+} from "../../../../shared-kernel/domain/legal-consent.vo";
 import { Company } from "../../domain/company.entity";
 import { CnpjAlreadyRegisteredError, EmailAlreadyRegisteredError } from "../errors";
 import { CompanyRepository } from "../ports/company-repository.port";
@@ -35,6 +43,14 @@ class InMemoryCompanyRepository implements CompanyRepository {
   }
 }
 
+class InMemoryConsentLog implements ConsentLog {
+  readonly entries: ConsentEntry[] = [];
+
+  async append(entry: ConsentEntry): Promise<void> {
+    this.entries.push(entry);
+  }
+}
+
 class FakePasswordHasher implements PasswordHasher {
   async hash(plainText: string): Promise<string> {
     return `hashed:${plainText}`;
@@ -51,11 +67,17 @@ describe("RegisterCompanyUseCase", () => {
     razaoSocial: "Empresa Teste LTDA",
     email: "contato@empresa-teste.com",
     password: "senha-segura",
+    consent: { acceptTerms: true, acceptPrivacyPolicy: true, confirmAdult: true },
+    context: { ipAddress: "203.0.113.7", userAgent: "jest" },
   };
 
   it("registra uma empresa com dados válidos", async () => {
     const repository = new InMemoryCompanyRepository();
-    const useCase = new RegisterCompanyUseCase(repository, new FakePasswordHasher());
+    const useCase = new RegisterCompanyUseCase(
+      repository,
+      new FakePasswordHasher(),
+      new InMemoryConsentLog(),
+    );
 
     const result = await useCase.execute(validInput);
 
@@ -67,7 +89,11 @@ describe("RegisterCompanyUseCase", () => {
 
   it("rejeita duas empresas com o mesmo CNPJ (regra 1)", async () => {
     const repository = new InMemoryCompanyRepository();
-    const useCase = new RegisterCompanyUseCase(repository, new FakePasswordHasher());
+    const useCase = new RegisterCompanyUseCase(
+      repository,
+      new FakePasswordHasher(),
+      new InMemoryConsentLog(),
+    );
 
     await useCase.execute(validInput);
 
@@ -78,12 +104,71 @@ describe("RegisterCompanyUseCase", () => {
 
   it("rejeita duas empresas com o mesmo e-mail", async () => {
     const repository = new InMemoryCompanyRepository();
-    const useCase = new RegisterCompanyUseCase(repository, new FakePasswordHasher());
+    const useCase = new RegisterCompanyUseCase(
+      repository,
+      new FakePasswordHasher(),
+      new InMemoryConsentLog(),
+    );
 
     await useCase.execute(validInput);
 
-    await expect(useCase.execute({ ...validInput, cnpj: "42.033.469/0001-77" })).rejects.toThrow(
-      EmailAlreadyRegisteredError,
+    await expect(
+      useCase.execute({ ...validInput, cnpj: "42.033.469/0001-77" }),
+    ).rejects.toThrow(EmailAlreadyRegisteredError);
+  });
+
+  it("grava o aceite dos Termos e da Política com a versão vigente", async () => {
+    const repository = new InMemoryCompanyRepository();
+    const consentLog = new InMemoryConsentLog();
+    const useCase = new RegisterCompanyUseCase(
+      repository,
+      new FakePasswordHasher(),
+      consentLog,
     );
+
+    const result = await useCase.execute(validInput);
+
+    expect(consentLog.entries).toHaveLength(1);
+    expect(consentLog.entries[0]).toMatchObject({
+      subjectRole: "COMPANY",
+      subjectId: result.companyId,
+      consent: { termsVersion: TERMS_OF_USE_VERSION },
+      context: { ipAddress: "203.0.113.7" },
+    });
+  });
+
+  it("não cria a conta sem o aceite dos Termos", async () => {
+    const repository = new InMemoryCompanyRepository();
+    const consentLog = new InMemoryConsentLog();
+    const useCase = new RegisterCompanyUseCase(
+      repository,
+      new FakePasswordHasher(),
+      consentLog,
+    );
+
+    await expect(
+      useCase.execute({
+        ...validInput,
+        consent: { ...validInput.consent, acceptTerms: false },
+      }),
+    ).rejects.toThrow(LegalConsentRequiredError);
+    expect(await repository.existsByEmail(Email.create(validInput.email))).toBe(false);
+    expect(consentLog.entries).toHaveLength(0);
+  });
+
+  it("não cria a conta sem a declaração de maioridade", async () => {
+    const repository = new InMemoryCompanyRepository();
+    const useCase = new RegisterCompanyUseCase(
+      repository,
+      new FakePasswordHasher(),
+      new InMemoryConsentLog(),
+    );
+
+    await expect(
+      useCase.execute({
+        ...validInput,
+        consent: { ...validInput.consent, confirmAdult: false },
+      }),
+    ).rejects.toThrow("maiores de 18 anos");
   });
 });

@@ -1,6 +1,12 @@
 import { apiFetch } from "./client";
 
-export interface RegisterCompanyInput {
+export interface LegalConsentInput {
+  acceptTerms: boolean;
+  acceptPrivacyPolicy: boolean;
+  confirmAdult: boolean;
+}
+
+export interface RegisterCompanyInput extends LegalConsentInput {
   cnpj: string;
   razaoSocial: string;
   nomeFantasia?: string;
@@ -8,7 +14,7 @@ export interface RegisterCompanyInput {
   password: string;
 }
 
-export interface RegisterWorkerInput {
+export interface RegisterWorkerInput extends LegalConsentInput {
   cpf: string;
   nome: string;
   email: string;
@@ -31,6 +37,9 @@ export function login(input: {
   return apiFetch("/auth/login", { method: "POST", body: input });
 }
 
-export function loginAdmin(input: { email: string; password: string }): Promise<{ accessToken: string }> {
+export function loginAdmin(input: {
+  email: string;
+  password: string;
+}): Promise<{ accessToken: string }> {
   return apiFetch("/admin/auth/login", { method: "POST", body: input });
 }

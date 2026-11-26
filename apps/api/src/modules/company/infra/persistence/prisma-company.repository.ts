@@ -41,6 +41,7 @@ export class PrismaCompanyRepository implements CompanyRepository {
         passwordHash: company.passwordHash,
         status: company.status,
         ...profile,
+        deletedAt: company.deletedAt,
       },
     });
   }
@@ -87,6 +88,7 @@ export class PrismaCompanyRepository implements CompanyRepository {
       whatsapp: record.whatsapp ? PhoneNumber.create(record.whatsapp) : null,
       website: record.website ? Website.create(record.website) : null,
       createdAt: record.createdAt,
+      deletedAt: record.deletedAt,
     });
   }
 }

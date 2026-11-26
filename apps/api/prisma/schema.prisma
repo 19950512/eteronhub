@@ -10,6 +10,7 @@ datasource db {
 enum CompanyStatus {
   ACTIVE
   SUSPENDED
+  DELETED
 }
 
 model Company {
@@ -26,6 +27,7 @@ model Company {
   whatsapp     String?
   website      String?
   createdAt    DateTime       @default(now())
+  deletedAt    DateTime?
 }
 
 enum CompanySector {
@@ -44,6 +46,7 @@ enum CompanySector {
 enum WorkerStatus {
   ACTIVE
   SUSPENDED
+  DELETED
 }
 
 model Worker {
@@ -60,6 +63,7 @@ model Worker {
   // consulta por software — JSON evita uma tabela só para isso.
   softwares    Json            @default("[]")
   createdAt    DateTime        @default(now())
+  deletedAt    DateTime?
 }
 
 enum WorkerSegment {
@@ -79,6 +83,23 @@ enum WorkerSegment {
   MONTAGEM_INDUSTRIAL
   MANUTENCAO_INDUSTRIAL
   OUTRO
+}
+
+// invariant: registro só de inserção — prova do aceite dos Termos e da Política
+// (LGPD art. 8º §2º: o ônus da prova do consentimento é do controlador). Nunca
+// atualizar nem apagar, nem quando a conta é excluída.
+model ConsentRecord {
+  id             String   @id @default(uuid())
+  subjectRole    String
+  subjectId      String
+  termsVersion   String
+  privacyVersion String
+  ageConfirmed   Boolean
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+
+  @@index([subjectRole, subjectId])
 }
 
 model Admin {

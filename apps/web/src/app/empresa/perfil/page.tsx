@@ -4,6 +4,7 @@ import { Save } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Alert } from "../../../components/ui/alert";
 import { Field } from "../../../components/ui/field";
+import { PrivacyPanel } from "../../../components/legal/privacy-panel";
 import { PageHeader } from "../../../components/ui/page-header";
 import { Spinner } from "../../../components/ui/spinner";
 import { ApiRequestError } from "../../../lib/api/client";
@@ -239,6 +240,8 @@ function CompanyProfilePage(): JSX.Element {
           <section className="card" aria-label="Perfil da empresa">
             <CompanyProfileForm profile={profile} />
           </section>
+
+          <PrivacyPanel role="COMPANY" />
         </div>
       )}
     </div>

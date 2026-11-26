@@ -4,6 +4,7 @@ import { Plus, Save, X } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Alert } from "../../../components/ui/alert";
 import { Field } from "../../../components/ui/field";
+import { PrivacyPanel } from "../../../components/legal/privacy-panel";
 import { PageHeader } from "../../../components/ui/page-header";
 import { Spinner } from "../../../components/ui/spinner";
 import { ApiRequestError } from "../../../lib/api/client";
@@ -306,6 +307,8 @@ function WorkerProfilePage(): JSX.Element {
           <section className="card" aria-label="Perfil profissional">
             <WorkerProfileForm profile={profile} />
           </section>
+
+          <PrivacyPanel role="WORKER" />
         </div>
       )}
     </div>

@@ -1,9 +1,17 @@
 import { Inject, Injectable } from "@nestjs/common";
+import {
+  ConsentLog,
+  RequestContext,
+} from "../../../../shared-kernel/application/consent-log.port";
 import { PasswordHasher } from "../../../../shared-kernel/application/password-hasher.port";
 import { Cpf } from "../../../../shared-kernel/domain/cpf.vo";
 import { Email } from "../../../../shared-kernel/domain/email.vo";
+import {
+  LegalConsent,
+  LegalConsentInput,
+} from "../../../../shared-kernel/domain/legal-consent.vo";
 import { Password } from "../../../../shared-kernel/domain/password.vo";
-import { PASSWORD_HASHER } from "../../../../shared-kernel/tokens";
+import { CONSENT_LOG, PASSWORD_HASHER } from "../../../../shared-kernel/tokens";
 import { WORKER_REPOSITORY } from "../../worker.tokens";
 import { Worker } from "../../domain/worker.entity";
 import { CpfAlreadyRegisteredError, WorkerEmailAlreadyRegisteredError } from "../errors";
@@ -14,6 +22,8 @@ export interface RegisterWorkerInput {
   nome: string;
   email: string;
   password: string;
+  consent: LegalConsentInput;
+  context: RequestContext;
 }
 
 export interface RegisterWorkerOutput {
@@ -25,18 +35,24 @@ export class RegisterWorkerUseCase {
   constructor(
     @Inject(WORKER_REPOSITORY) private readonly workerRepository: WorkerRepository,
     @Inject(PASSWORD_HASHER) private readonly passwordHasher: PasswordHasher,
+    @Inject(CONSENT_LOG) private readonly consentLog: ConsentLog,
   ) {}
 
   async execute(input: RegisterWorkerInput): Promise<RegisterWorkerOutput> {
     const cpf = Cpf.create(input.cpf);
     const email = Email.create(input.email);
     Password.create(input.password);
+    const consent = LegalConsent.accept(input.consent);
 
     if (await this.workerRepository.existsByCpf(cpf)) {
-      throw new CpfAlreadyRegisteredError(`Já existe um trabalhador cadastrado com o CPF ${cpf.format()}`);
+      throw new CpfAlreadyRegisteredError(
+        `Já existe um trabalhador cadastrado com o CPF ${cpf.format()}`,
+      );
     }
     if (await this.workerRepository.existsByEmail(email)) {
-      throw new WorkerEmailAlreadyRegisteredError(`Já existe uma conta cadastrada com o e-mail ${email.value}`);
+      throw new WorkerEmailAlreadyRegisteredError(
+        `Já existe uma conta cadastrada com o e-mail ${email.value}`,
+      );
     }
 
     const passwordHash = await this.passwordHasher.hash(input.password);
@@ -48,6 +64,15 @@ export class RegisterWorkerUseCase {
       passwordHash,
     });
 
+    // invariant: o aceite é gravado antes da conta — nunca existe conta sem a
+    // prova do consentimento. Se o save falhar, sobra só um registro órfão de
+    // aceite, inofensivo.
+    await this.consentLog.append({
+      subjectRole: "WORKER",
+      subjectId: worker.id,
+      consent,
+      context: input.context,
+    });
     await this.workerRepository.save(worker);
 
     return { workerId: worker.id };

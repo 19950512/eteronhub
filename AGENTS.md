@@ -23,7 +23,8 @@ Documentação de produto e arquitetura em [docs/](docs/):
 [03-arquitetura-tecnica.md](docs/03-arquitetura-tecnica.md),
 [04-roadmap-mvp.md](docs/04-roadmap-mvp.md),
 [05-operacao-e-lancamento.md](docs/05-operacao-e-lancamento.md),
-[07-design-system.md](docs/07-design-system.md) (tokens, componentes e PWA do `apps/web`).
+[07-design-system.md](docs/07-design-system.md) (tokens, componentes e PWA do `apps/web`),
+[08-lgpd-e-privacidade.md](docs/08-lgpd-e-privacidade.md) (consentimento, exportação e exclusão de conta).
 
 ## Build & test
 
@@ -62,6 +63,9 @@ Regras não-negociáveis:
   reconciliação e idempotência — veja o runbook em
   [docs/05-operacao-e-lancamento.md](docs/05-operacao-e-lancamento.md) antes de
   mexer em `payment/` ou `credit/`.
+- Novo dado pessoal coletado precisa de finalidade e base legal na Política de
+  Privacidade e entrar na exportação (`PrismaPersonalDataReader`) — veja
+  [docs/08-lgpd-e-privacidade.md](docs/08-lgpd-e-privacidade.md).
 - Dados de contato da empresa só podem ser expostos a um worker depois do fluxo
   de desbloqueio (`job-unlock`) confirmar o consumo de crédito — nunca vaze
   esse dado antes da checagem de autorização.

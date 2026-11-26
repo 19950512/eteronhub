@@ -1,10 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { ConflictError, ValidationError } from "../../../shared-kernel/domain/domain-error";
+import {
+  ConflictError,
+  ValidationError,
+} from "../../../shared-kernel/domain/domain-error";
 import { ContactInfo } from "./contact-info.vo";
 import { SalaryRange } from "./salary-range.vo";
 import { CreditAmount } from "../../../shared-kernel/domain/credit-amount.vo";
 
-export type JobPostingStatus = "DRAFT" | "IN_MODERATION" | "PUBLISHED" | "REJECTED" | "CLOSED" | "EXPIRED";
+export type JobPostingStatus =
+  "DRAFT" | "IN_MODERATION" | "PUBLISHED" | "REJECTED" | "CLOSED" | "EXPIRED";
 
 export class InvalidJobPostingStateError extends ConflictError {}
 export class MissingRejectionReasonError extends ValidationError {}
@@ -51,7 +55,11 @@ export interface JobPostingPublicView {
 export interface JobPostingInternalView extends JobPostingPublicView {
   companyId: string;
   status: JobPostingStatus;
-  contactInfo: { email: string | null; phone: string | null; applicationUrl: string | null };
+  contactInfo: {
+    email: string | null;
+    phone: string | null;
+    applicationUrl: string | null;
+  };
   rejectionReason: string | null;
   createdAt: Date;
 }
@@ -63,7 +71,11 @@ export interface JobPostingCompanyInfo {
 
 export interface JobPostingUnlockedView extends JobPostingPublicView {
   companyName: string;
-  contactInfo: { email: string | null; phone: string | null; applicationUrl: string | null };
+  contactInfo: {
+    email: string | null;
+    phone: string | null;
+    applicationUrl: string | null;
+  };
 }
 
 export class JobPosting {
@@ -134,17 +146,34 @@ export class JobPosting {
     this.props.status = "CLOSED";
   }
 
+  /**
+   * Tira a vaga do ar porque a empresa excluiu a conta. Ao contrário de
+   * close(), vale para qualquer status ainda aberto (rascunho, moderação,
+   * publicada, rejeitada). Devolve false se a vaga já estava encerrada.
+   */
+  withdrawForCompanyDeletion(): boolean {
+    if (this.props.status === "CLOSED" || this.props.status === "EXPIRED") {
+      return false;
+    }
+    this.props.status = "CLOSED";
+    return true;
+  }
+
   expire(now: Date): void {
     this.ensureStatus("PUBLISHED", "expirar");
     if (!this.props.expiresAt || now < this.props.expiresAt) {
-      throw new InvalidJobPostingStateError("A vaga ainda não atingiu a data de expiração");
+      throw new InvalidJobPostingStateError(
+        "A vaga ainda não atingiu a data de expiração",
+      );
     }
     this.props.status = "EXPIRED";
   }
 
   private ensureStatus(expected: JobPostingStatus, action: string): void {
     if (this.props.status !== expected) {
-      throw new InvalidJobPostingStateError(`Não é possível ${action} uma vaga com status ${this.props.status}`);
+      throw new InvalidJobPostingStateError(
+        `Não é possível ${action} uma vaga com status ${this.props.status}`,
+      );
     }
   }
 

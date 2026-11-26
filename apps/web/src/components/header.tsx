@@ -136,12 +136,11 @@ export function Header(): JSX.Element {
                 </Link>
               </>
             )}
-            <Link
-              href="/politica-de-privacidade"
-              className="text-sm text-muted text-center"
-            >
-              Política de Privacidade
-            </Link>
+            <p className="text-sm text-muted text-center">
+              <Link href="/termos-de-uso">Termos de Uso</Link>
+              {" · "}
+              <Link href="/politica-de-privacidade">Política de Privacidade</Link>
+            </p>
           </div>
         </div>
       </dialog>

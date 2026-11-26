@@ -21,6 +21,11 @@ import { WorkerProfileController } from "./worker-profile.controller";
     GetWorkerProfileUseCase,
     UpdateWorkerProfileUseCase,
   ],
-  exports: [SuspendWorkerUseCase, ReactivateWorkerUseCase, AuthenticateWorkerUseCase],
+  exports: [
+    WORKER_REPOSITORY,
+    SuspendWorkerUseCase,
+    ReactivateWorkerUseCase,
+    AuthenticateWorkerUseCase,
+  ],
 })
 export class WorkerModule {}

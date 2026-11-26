@@ -43,6 +43,7 @@ export class PrismaWorkerRepository implements WorkerRepository {
         passwordHash: worker.passwordHash,
         status: worker.status,
         ...profile,
+        deletedAt: worker.deletedAt,
       },
     });
   }
@@ -100,6 +101,7 @@ export class PrismaWorkerRepository implements WorkerRepository {
       segments: record.segments.map(parseWorkerSegment),
       softwares: this.softwaresFromJson(record.softwares),
       createdAt: record.createdAt,
+      deletedAt: record.deletedAt,
     });
   }
 }

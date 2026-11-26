@@ -20,6 +20,7 @@ function LoginForm(): JSX.Element {
   const auth = useAuth();
   const searchParams = useSearchParams();
   const registered = searchParams.get("cadastro");
+  const accountDeleted = searchParams.get("conta") === "excluida";
   const [role, setRole] = useState<LoginRole>(
     registered === "empresa" ? "COMPANY" : "WORKER",
   );
@@ -56,6 +57,13 @@ function LoginForm(): JSX.Element {
           Bem-vindo de volta. Escolha como você usa o Eteron Hub.
         </p>
       </div>
+
+      {accountDeleted && (
+        <Alert tone="success" title="Conta excluída">
+          Seus dados pessoais foram apagados. Guardamos só os registros financeiros e de
+          aceite que a lei manda manter.
+        </Alert>
+      )}
 
       {registered && (
         <Alert tone="success" title="Cadastro concluído!">

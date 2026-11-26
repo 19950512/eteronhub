@@ -2,9 +2,15 @@ import { Global, Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 import { requireJwtSecret } from "../infra/config/env";
 import { PrismaAccountStatusReader } from "../infra/prisma/prisma-account-status.reader";
+import { PrismaConsentLog } from "../infra/prisma/prisma-consent-log";
 import { BcryptPasswordHasher } from "./infra/bcrypt-password-hasher";
 import { JwtAuthTokenService } from "./infra/jwt-auth-token.service";
-import { ACCOUNT_STATUS_READER, AUTH_TOKEN_SERVICE, PASSWORD_HASHER } from "./tokens";
+import {
+  ACCOUNT_STATUS_READER,
+  AUTH_TOKEN_SERVICE,
+  CONSENT_LOG,
+  PASSWORD_HASHER,
+} from "./tokens";
 
 @Global()
 @Module({
@@ -20,7 +26,14 @@ import { ACCOUNT_STATUS_READER, AUTH_TOKEN_SERVICE, PASSWORD_HASHER } from "./to
     { provide: PASSWORD_HASHER, useClass: BcryptPasswordHasher },
     { provide: AUTH_TOKEN_SERVICE, useClass: JwtAuthTokenService },
     { provide: ACCOUNT_STATUS_READER, useClass: PrismaAccountStatusReader },
+    { provide: CONSENT_LOG, useClass: PrismaConsentLog },
   ],
-  exports: [PASSWORD_HASHER, AUTH_TOKEN_SERVICE, ACCOUNT_STATUS_READER, JwtModule],
+  exports: [
+    PASSWORD_HASHER,
+    AUTH_TOKEN_SERVICE,
+    ACCOUNT_STATUS_READER,
+    CONSENT_LOG,
+    JwtModule,
+  ],
 })
 export class SharedKernelModule {}

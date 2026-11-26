@@ -4,16 +4,22 @@ import {
   ValidationError,
 } from "../../../shared-kernel/domain/domain-error";
 import { Cpf } from "../../../shared-kernel/domain/cpf.vo";
+import {
+  DELETED_ACCOUNT_NAME,
+  DELETED_ACCOUNT_PASSWORD_HASH,
+  deletedAccountEmail,
+} from "../../../shared-kernel/domain/deleted-account";
 import { Email } from "../../../shared-kernel/domain/email.vo";
 import { PhoneNumber } from "../../../shared-kernel/domain/phone-number.vo";
 import { WorkerSegment } from "./worker-segment";
 import { WorkerSoftware } from "./worker-software.vo";
 
-export type WorkerStatus = "ACTIVE" | "SUSPENDED";
+export type WorkerStatus = "ACTIVE" | "SUSPENDED" | "DELETED";
 
 export class WorkerAlreadySuspendedError extends ConflictError {}
 export class WorkerNotSuspendedError extends ConflictError {}
 export class InvalidWorkerProfileError extends ValidationError {}
+export class WorkerAccountDeletedError extends ConflictError {}
 
 export const WORKER_BIO_MAX_LENGTH = 2000;
 export const WORKER_MAX_SEGMENTS = 10;
@@ -31,6 +37,7 @@ export interface WorkerProps {
   segments: WorkerSegment[];
   softwares: WorkerSoftware[];
   createdAt: Date;
+  deletedAt?: Date | null;
 }
 
 export interface WorkerProfileInput {
@@ -116,7 +123,28 @@ export class Worker {
     this.props.softwares = [...input.softwares];
   }
 
+  /**
+   * Exclusão a pedido do titular (LGPD art. 18, VI): apaga o que identifica a
+   * pessoa e encerra o acesso. O id continua, ligado aos pagamentos e
+   * desbloqueios, que são registros financeiros de guarda obrigatória.
+   */
+  deleteAccount(now: Date): void {
+    this.ensureNotDeleted();
+    // why: o CPF fica — identifica o pagador dos Pix já feitos, que precisam
+    // ser guardados por obrigação legal (fiscal/contábil, art. 16, I da LGPD).
+    this.props.nome = DELETED_ACCOUNT_NAME;
+    this.props.email = deletedAccountEmail(this.props.id);
+    this.props.passwordHash = DELETED_ACCOUNT_PASSWORD_HASH;
+    this.props.phone = null;
+    this.props.bio = null;
+    this.props.segments = [];
+    this.props.softwares = [];
+    this.props.status = "DELETED";
+    this.props.deletedAt = now;
+  }
+
   suspend(): void {
+    this.ensureNotDeleted();
     if (this.props.status === "SUSPENDED") {
       throw new WorkerAlreadySuspendedError("Trabalhador já está suspenso");
     }
@@ -124,10 +152,17 @@ export class Worker {
   }
 
   reactivate(): void {
+    this.ensureNotDeleted();
     if (this.props.status !== "SUSPENDED") {
       throw new WorkerNotSuspendedError("Trabalhador não está suspenso");
     }
     this.props.status = "ACTIVE";
+  }
+
+  private ensureNotDeleted(): void {
+    if (this.props.status === "DELETED") {
+      throw new WorkerAccountDeletedError("Esta conta de trabalhador foi excluída");
+    }
   }
 
   toProfileView(): WorkerProfileView {
@@ -189,5 +224,9 @@ export class Worker {
 
   get createdAt(): Date {
     return this.props.createdAt;
+  }
+
+  get deletedAt(): Date | null {
+    return this.props.deletedAt ?? null;
   }
 }

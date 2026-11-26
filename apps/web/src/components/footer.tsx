@@ -47,6 +47,9 @@ export function Footer(): JSX.Element {
             <h2 className="footer-title">Institucional</h2>
             <ul className="footer-links">
               <li>
+                <Link href="/termos-de-uso">Termos de Uso</Link>
+              </li>
+              <li>
                 <Link href="/politica-de-privacidade">Política de Privacidade</Link>
               </li>
               <li>

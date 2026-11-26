@@ -13,6 +13,7 @@ import { JobPostingModule } from "./modules/job-posting/job-posting.module";
 import { JobUnlockModule } from "./modules/job-unlock/job-unlock.module";
 import { ModerationModule } from "./modules/moderation/moderation.module";
 import { PaymentModule } from "./modules/payment/payment.module";
+import { PrivacyModule } from "./modules/privacy/privacy.module";
 import { WorkerModule } from "./modules/worker/worker.module";
 import { SharedKernelModule } from "./shared-kernel/shared-kernel.module";
 
@@ -34,6 +35,7 @@ import { SharedKernelModule } from "./shared-kernel/shared-kernel.module";
     PaymentModule,
     JobUnlockModule,
     JobPostingCatalogModule,
+    PrivacyModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
