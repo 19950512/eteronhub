@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
+import { PageLoading } from "../../components/ui/spinner";
 import { Role, useAuth } from "./auth-context";
 
 interface RequireRoleProps {
@@ -10,7 +11,11 @@ interface RequireRoleProps {
   children: ReactNode;
 }
 
-export function RequireRole({ role, redirectTo, children }: RequireRoleProps): JSX.Element | null {
+export function RequireRole({
+  role,
+  redirectTo,
+  children,
+}: RequireRoleProps): JSX.Element {
   const { payload, isLoading } = useAuth();
   const router = useRouter();
 
@@ -21,7 +26,7 @@ export function RequireRole({ role, redirectTo, children }: RequireRoleProps): J
   }, [isLoading, payload, role, redirectTo, router]);
 
   if (isLoading || payload?.role !== role) {
-    return null;
+    return <PageLoading />;
   }
 
   return <>{children}</>;

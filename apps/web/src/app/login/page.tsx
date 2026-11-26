@@ -1,15 +1,28 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { Building2, HardHat, LogIn } from "lucide-react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState, type FormEvent } from "react";
+import { marketImages } from "../../assets/images";
+import { AuthShell } from "../../components/auth/auth-shell";
+import { Alert } from "../../components/ui/alert";
+import { Field } from "../../components/ui/field";
+import { Spinner } from "../../components/ui/spinner";
 import { login } from "../../lib/api/auth";
 import { ApiRequestError } from "../../lib/api/client";
 import { useAuth } from "../../lib/auth/auth-context";
 
-export default function LoginPage(): JSX.Element {
+type LoginRole = "COMPANY" | "WORKER";
+
+function LoginForm(): JSX.Element {
   const router = useRouter();
   const auth = useAuth();
-  const [role, setRole] = useState<"COMPANY" | "WORKER">("WORKER");
+  const searchParams = useSearchParams();
+  const registered = searchParams.get("cadastro");
+  const [role, setRole] = useState<LoginRole>(
+    registered === "empresa" ? "COMPANY" : "WORKER",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -30,53 +43,105 @@ export default function LoginPage(): JSX.Element {
     }
   }
 
-  return (
-    <div className="card" style={{ maxWidth: 420, margin: "0 auto" }}>
-      <h1>Entrar</h1>
+  const options: { value: LoginRole; label: string; icon: typeof HardHat }[] = [
+    { value: "WORKER", label: "Trabalhador", icon: HardHat },
+    { value: "COMPANY", label: "Empresa", icon: Building2 },
+  ];
 
-      <div className="button-row" style={{ marginBottom: "1rem" }}>
-        <button
-          type="button"
-          className={role === "WORKER" ? "button" : "button button-secondary"}
-          onClick={() => setRole("WORKER")}
-        >
-          Sou trabalhador
-        </button>
-        <button
-          type="button"
-          className={role === "COMPANY" ? "button" : "button button-secondary"}
-          onClick={() => setRole("COMPANY")}
-        >
-          Sou empresa
-        </button>
+  return (
+    <>
+      <div className="auth-card-header">
+        <h1>Entrar</h1>
+        <p className="text-muted">
+          Bem-vindo de volta. Escolha como você usa o Eteron Hub.
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <div className="form-field">
-          <label htmlFor="email">E-mail</label>
-          <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-        </div>
-        <div className="form-field">
-          <label htmlFor="password">Senha</label>
+      {registered && (
+        <Alert tone="success" title="Cadastro concluído!">
+          Agora é só entrar com o e-mail e a senha que você cadastrou.
+        </Alert>
+      )}
+
+      <div className="segmented" role="radiogroup" aria-label="Tipo de conta">
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={role === option.value}
+            className="segmented-option"
+            onClick={() => setRole(option.value)}
+          >
+            <option.icon aria-hidden="true" />
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      <form className="form" onSubmit={handleSubmit}>
+        <Field id="email" label="E-mail">
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            inputMode="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </Field>
+        <Field id="password" label="Senha">
           <input
             id="password"
             type="password"
+            autoComplete="current-password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-        </div>
+        </Field>
 
-        {error && <p className="error-message">{error}</p>}
+        {error && <Alert tone="error">{error}</Alert>}
 
-        <button className="button" type="submit" disabled={submitting}>
+        <button
+          className="btn btn-primary btn-lg btn-block"
+          type="submit"
+          disabled={submitting}
+        >
+          {submitting ? <Spinner /> : <LogIn aria-hidden="true" />}
           {submitting ? "Entrando..." : "Entrar"}
         </button>
       </form>
 
-      <p className="text-muted" style={{ marginTop: "1rem" }}>
-        É admin? <a href="/admin/login">Entre por aqui</a>.
+      <p className="text-sm text-muted text-center">
+        Ainda não tem conta?{" "}
+        <Link href={role === "COMPANY" ? "/cadastro/empresa" : "/cadastro/trabalhador"}>
+          Cadastre-se
+        </Link>
       </p>
-    </div>
+      <p className="text-xs text-muted text-center">
+        É da equipe Eteron Hub? <Link href="/admin/login">Acesso administrativo</Link>
+      </p>
+    </>
+  );
+}
+
+export default function LoginPage(): JSX.Element {
+  return (
+    <AuthShell
+      image={marketImages.weldingFrame}
+      headline="O ponto de encontro da metalurgia."
+      description="Trabalhadores encontram vagas revisadas; empresas recebem contato de quem tem interesse real."
+      highlights={[
+        "Vagas moderadas pela equipe",
+        "Créditos via Pix",
+        "Contato direto com a empresa",
+      ]}
+    >
+      <Suspense fallback={<Spinner label="Carregando..." />}>
+        <LoginForm />
+      </Suspense>
+    </AuthShell>
   );
 }

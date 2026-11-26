@@ -22,7 +22,8 @@ Documentação de produto e arquitetura em [docs/](docs/):
 [02-modelo-de-dominio.md](docs/02-modelo-de-dominio.md),
 [03-arquitetura-tecnica.md](docs/03-arquitetura-tecnica.md),
 [04-roadmap-mvp.md](docs/04-roadmap-mvp.md),
-[05-operacao-e-lancamento.md](docs/05-operacao-e-lancamento.md).
+[05-operacao-e-lancamento.md](docs/05-operacao-e-lancamento.md),
+[07-design-system.md](docs/07-design-system.md) (tokens, componentes e PWA do `apps/web`).
 
 ## Build & test
 

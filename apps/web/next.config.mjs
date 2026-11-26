@@ -8,13 +8,28 @@ import { URL, fileURLToPath } from "node:url";
 const standalone = process.env.NEXT_OUTPUT === "standalone";
 
 /** @type {import('next').NextConfig} */
-const nextConfig = standalone
-  ? {
-      output: "standalone",
-      // why: o pnpm guarda os pacotes em node_modules/.pnpm na raiz do
-      // monorepo, fora de apps/web; o tracing precisa partir de lá.
-      outputFileTracingRoot: fileURLToPath(new URL("../../", import.meta.url)),
-    }
-  : {};
+const nextConfig = {
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          // why: navegadores precisam buscar o SW novo a cada deploy; cache
+          // longo prenderia usuários numa versão antiga do app.
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+        ],
+      },
+    ];
+  },
+  ...(standalone
+    ? {
+        output: "standalone",
+        // why: o pnpm guarda os pacotes em node_modules/.pnpm na raiz do
+        // monorepo, fora de apps/web; o tracing precisa partir de lá.
+        outputFileTracingRoot: fileURLToPath(new URL("../../", import.meta.url)),
+      }
+    : {}),
+};
 
 export default nextConfig;

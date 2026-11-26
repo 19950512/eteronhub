@@ -1,5 +1,5 @@
 export const metadata = {
-  title: "Política de Privacidade | EteronHub",
+  title: "Política de Privacidade",
   description:
     "Como o Eteron Hub coleta, usa, compartilha e protege os dados pessoais de empresas e trabalhadores, conforme a LGPD.",
 };
@@ -9,7 +9,7 @@ const LAST_UPDATE = "14 de setembro de 2026";
 
 export default function PoliticaDePrivacidadePage(): JSX.Element {
   return (
-    <div className="stack policy">
+    <div className="container container-narrow page stack policy">
       <div>
         <h1>Política de Privacidade</h1>
         <p className="text-muted">Última atualização: {LAST_UPDATE}</p>

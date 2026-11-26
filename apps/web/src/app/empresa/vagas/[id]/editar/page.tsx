@@ -1,8 +1,13 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { JobPostingForm } from "../../../../../components/job-posting-form";
+import { Alert } from "../../../../../components/ui/alert";
+import { PageHeader } from "../../../../../components/ui/page-header";
+import { PageLoading } from "../../../../../components/ui/spinner";
 import { ApiRequestError } from "../../../../../lib/api/client";
 import {
   JobPostingFormInput,
@@ -31,7 +36,11 @@ function EditJobPosting(): JSX.Element {
         }
         setJobPosting(found);
       })
-      .catch((err: unknown) => setError(err instanceof ApiRequestError ? err.message : "Erro ao carregar a vaga"));
+      .catch((err: unknown) =>
+        setError(
+          err instanceof ApiRequestError ? err.message : "Erro ao carregar a vaga",
+        ),
+      );
   }, [id, token]);
 
   async function handleSubmit(input: JobPostingFormInput): Promise<void> {
@@ -40,28 +49,51 @@ function EditJobPosting(): JSX.Element {
     router.push("/empresa");
   }
 
-  if (error) return <p className="error-message">{error}</p>;
-  if (!jobPosting) return <p className="text-muted">Carregando...</p>;
+  if (error) {
+    return (
+      <div className="container container-narrow page">
+        <Alert tone="error">{error}</Alert>
+      </div>
+    );
+  }
+  if (!jobPosting) return <PageLoading label="Carregando vaga..." />;
 
   return (
-    <div className="card" style={{ maxWidth: 560, margin: "0 auto" }}>
-      <h1>Editar vaga</h1>
-      <JobPostingForm
-        submitLabel="Salvar rascunho"
-        onSubmit={handleSubmit}
-        initialValues={{
-          title: jobPosting.title,
-          description: jobPosting.description,
-          requirements: jobPosting.requirements,
-          location: jobPosting.location,
-          salaryMinCents: jobPosting.salaryRangeCents.min,
-          salaryMaxCents: jobPosting.salaryRangeCents.max,
-          unlockCost: jobPosting.unlockCost,
-          contactEmail: jobPosting.contactInfo.email ?? undefined,
-          contactPhone: jobPosting.contactInfo.phone ?? undefined,
-          contactApplicationUrl: jobPosting.contactInfo.applicationUrl ?? undefined,
-        }}
-      />
+    <div className="container container-narrow page">
+      <Link
+        href="/empresa"
+        className="btn btn-ghost btn-sm"
+        style={{ marginBottom: "var(--space-4)", marginLeft: -12 }}
+      >
+        <ArrowLeft aria-hidden="true" />
+        Minhas vagas
+      </Link>
+      <PageHeader eyebrow="Editar vaga" title={jobPosting.title} />
+      {jobPosting.status === "REJECTED" && jobPosting.rejectionReason && (
+        <div style={{ marginBottom: "var(--space-4)" }}>
+          <Alert tone="error" title="Ajuste o que a moderação pediu">
+            {jobPosting.rejectionReason}
+          </Alert>
+        </div>
+      )}
+      <div className="card">
+        <JobPostingForm
+          submitLabel="Salvar rascunho"
+          onSubmit={handleSubmit}
+          initialValues={{
+            title: jobPosting.title,
+            description: jobPosting.description,
+            requirements: jobPosting.requirements,
+            location: jobPosting.location,
+            salaryMinCents: jobPosting.salaryRangeCents.min,
+            salaryMaxCents: jobPosting.salaryRangeCents.max,
+            unlockCost: jobPosting.unlockCost,
+            contactEmail: jobPosting.contactInfo.email ?? undefined,
+            contactPhone: jobPosting.contactInfo.phone ?? undefined,
+            contactApplicationUrl: jobPosting.contactInfo.applicationUrl ?? undefined,
+          }}
+        />
+      </div>
     </div>
   );
 }

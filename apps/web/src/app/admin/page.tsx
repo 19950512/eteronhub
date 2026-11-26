@@ -1,12 +1,22 @@
 "use client";
 
+import { Check, ClipboardCheck, LockKeyhole, MapPin, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { approveJobPosting, listPendingModeration, rejectJobPosting } from "../../lib/api/admin";
+import { Alert } from "../../components/ui/alert";
+import { EmptyState } from "../../components/ui/empty-state";
+import { Field } from "../../components/ui/field";
+import { PageHeader } from "../../components/ui/page-header";
+import { Spinner } from "../../components/ui/spinner";
+import {
+  approveJobPosting,
+  listPendingModeration,
+  rejectJobPosting,
+} from "../../lib/api/admin";
 import { ApiRequestError } from "../../lib/api/client";
 import { JobPostingInternalView } from "../../lib/api/job-postings";
 import { useAuth } from "../../lib/auth/auth-context";
 import { RequireRole } from "../../lib/auth/require-role";
-import { formatBRL } from "../../lib/format";
+import { formatDate, formatSalaryRange } from "../../lib/format";
 
 function ModerationQueueItem({
   jobPosting,
@@ -18,19 +28,21 @@ function ModerationQueueItem({
   onDecided: () => void;
 }): JSX.Element {
   const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleApprove(): Promise<void> {
-    setBusy(true);
+    setBusy("approve");
     setError(null);
     try {
       await approveJobPosting(token, jobPosting.id);
       onDecided();
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : "Não foi possível aprovar a vaga");
+      setError(
+        err instanceof ApiRequestError ? err.message : "Não foi possível aprovar a vaga",
+      );
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -39,50 +51,98 @@ function ModerationQueueItem({
       setError("Informe um motivo com pelo menos 3 caracteres");
       return;
     }
-    setBusy(true);
+    setBusy("reject");
     setError(null);
     try {
       await rejectJobPosting(token, jobPosting.id, reason);
       onDecided();
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : "Não foi possível rejeitar a vaga");
+      setError(
+        err instanceof ApiRequestError ? err.message : "Não foi possível rejeitar a vaga",
+      );
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
+  const { email, phone, applicationUrl } = jobPosting.contactInfo;
+
   return (
-    <div className="card">
-      <h3 className="card-title">{jobPosting.title}</h3>
-      <p className="text-muted">{jobPosting.location}</p>
-      <p className="text-muted">
-        {formatBRL(jobPosting.salaryRangeCents.min)} - {formatBRL(jobPosting.salaryRangeCents.max)} · empresa{" "}
-        {jobPosting.companyId}
-      </p>
-      <p>{jobPosting.description}</p>
-      <p className="text-muted">Requisitos: {jobPosting.requirements}</p>
-
-      {error && <p className="error-message">{error}</p>}
-
-      <div className="button-row">
-        <button className="button" disabled={busy} onClick={handleApprove}>
-          Aprovar
-        </button>
+    <article className="card stack">
+      <div className="stack-sm">
+        <div className="cluster-between" style={{ alignItems: "flex-start" }}>
+          <h2 className="job-card-title">{jobPosting.title}</h2>
+          <span className="badge badge-warning">Em moderação</span>
+        </div>
+        <div className="meta-row">
+          <span>
+            <MapPin aria-hidden="true" />
+            {jobPosting.location}
+          </span>
+          <span>{formatSalaryRange(jobPosting.salaryRangeCents)}</span>
+          <span>Criada em {formatDate(jobPosting.createdAt)}</span>
+          <span>{jobPosting.unlockCost} créditos</span>
+        </div>
+        <p className="text-xs text-muted break-anywhere">
+          Empresa: {jobPosting.companyId}
+        </p>
       </div>
 
-      <div className="form-field" style={{ marginTop: "0.75rem" }}>
-        <label htmlFor={`reason-${jobPosting.id}`}>Motivo da rejeição</label>
-        <textarea
+      <div className="card-section prose">
+        <h3 className="text-sm">Descrição</h3>
+        <p className="pre-line text-sm">{jobPosting.description}</p>
+        <h3 className="text-sm">Requisitos</h3>
+        <p className="pre-line text-sm">{jobPosting.requirements}</p>
+        <h3 className="text-sm">
+          <LockKeyhole
+            aria-hidden="true"
+            size={14}
+            style={{ display: "inline", verticalAlign: "-2px" }}
+          />{" "}
+          Contato (oculto ao público)
+        </h3>
+        <p className="text-sm break-anywhere">
+          {[email, phone, applicationUrl].filter(Boolean).join(" · ") ||
+            "Nenhum contato informado"}
+        </p>
+      </div>
+
+      {error && <Alert tone="error">{error}</Alert>}
+
+      <div className="card-section stack">
+        <Field
           id={`reason-${jobPosting.id}`}
-          rows={2}
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-        />
+          label="Motivo da rejeição"
+          hint="Obrigatório apenas para rejeitar. A empresa verá este texto."
+        >
+          <textarea
+            id={`reason-${jobPosting.id}`}
+            rows={2}
+            aria-describedby={`reason-${jobPosting.id}-hint`}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </Field>
+        <div className="cluster">
+          <button
+            className="btn btn-primary"
+            disabled={busy !== null}
+            onClick={handleApprove}
+          >
+            {busy === "approve" ? <Spinner /> : <Check aria-hidden="true" />}
+            Aprovar e publicar
+          </button>
+          <button
+            className="btn btn-danger-outline"
+            disabled={busy !== null}
+            onClick={handleReject}
+          >
+            {busy === "reject" ? <Spinner /> : <X aria-hidden="true" />}
+            Rejeitar
+          </button>
+        </div>
       </div>
-      <button className="button button-danger" disabled={busy} onClick={handleReject}>
-        Rejeitar
-      </button>
-    </div>
+    </article>
   );
 }
 
@@ -95,7 +155,9 @@ function ModerationQueue(): JSX.Element {
     if (!token) return;
     listPendingModeration(token)
       .then(setJobPostings)
-      .catch((err: unknown) => setError(err instanceof ApiRequestError ? err.message : "Erro ao carregar fila"));
+      .catch((err: unknown) =>
+        setError(err instanceof ApiRequestError ? err.message : "Erro ao carregar fila"),
+      );
   }, [token]);
 
   useEffect(() => {
@@ -103,16 +165,42 @@ function ModerationQueue(): JSX.Element {
   }, [load]);
 
   return (
-    <div className="stack">
-      <h1>Fila de moderação</h1>
-      {error && <p className="error-message">{error}</p>}
-      {jobPostings === null && !error && <p className="text-muted">Carregando...</p>}
-      {jobPostings && jobPostings.length === 0 && <p className="text-muted">Nenhuma vaga pendente de moderação.</p>}
+    <div className="container container-narrow page">
+      <PageHeader
+        eyebrow="Administração"
+        title="Fila de moderação"
+        description={
+          jobPostings
+            ? `${jobPostings.length} ${jobPostings.length === 1 ? "vaga aguardando" : "vagas aguardando"} revisão.`
+            : "Revise as vagas antes de publicá-las."
+        }
+      />
 
-      <div className="job-list">
+      {error && <Alert tone="error">{error}</Alert>}
+      {jobPostings === null && !error && (
+        <div className="card stack" role="status" aria-label="Carregando fila">
+          <span className="skeleton" style={{ height: 22, width: "60%" }} />
+          <span className="skeleton" style={{ height: 14, width: "40%" }} />
+          <span className="skeleton" style={{ height: 80 }} />
+        </div>
+      )}
+      {jobPostings && jobPostings.length === 0 && (
+        <EmptyState
+          icon={ClipboardCheck}
+          title="Fila zerada"
+          description="Nenhuma vaga pendente de moderação agora."
+        />
+      )}
+
+      <div className="stack">
         {jobPostings?.map((jobPosting) =>
           token ? (
-            <ModerationQueueItem key={jobPosting.id} jobPosting={jobPosting} token={token} onDecided={load} />
+            <ModerationQueueItem
+              key={jobPosting.id}
+              jobPosting={jobPosting}
+              token={token}
+              onDecided={load}
+            />
           ) : null,
         )}
       </div>

@@ -27,6 +27,9 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3002
 WORKDIR /app
 COPY --from=build /repo/apps/web/.next/standalone ./
 COPY --from=build /repo/apps/web/.next/static ./apps/web/.next/static
+# hazard: o standalone não inclui public/ — sem esta cópia os ícones do PWA e
+# o service worker (sw.js) respondem 404 em produção.
+COPY --from=build /repo/apps/web/public ./apps/web/public
 USER node
 EXPOSE 3002
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \

@@ -1,8 +1,24 @@
 "use client";
 
+import {
+  ArrowLeft,
+  Building2,
+  CalendarClock,
+  ExternalLink,
+  LockKeyhole,
+  LockOpen,
+  Mail,
+  MapPin,
+  Phone,
+  SearchX,
+  Wallet,
+} from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Alert } from "../../../components/ui/alert";
+import { EmptyState } from "../../../components/ui/empty-state";
+import { PageLoading, Spinner } from "../../../components/ui/spinner";
 import { ApiRequestError } from "../../../lib/api/client";
 import {
   getJobPostingDetails,
@@ -11,16 +27,80 @@ import {
 } from "../../../lib/api/job-postings";
 import { unlockJobPosting } from "../../../lib/api/job-unlock";
 import { useAuth } from "../../../lib/auth/auth-context";
-import { formatBRL } from "../../../lib/format";
+import { formatDate, formatSalaryRange } from "../../../lib/format";
 
-function isUnlocked(view: JobPostingPublicView | JobPostingUnlockedView): view is JobPostingUnlockedView {
+function isUnlocked(
+  view: JobPostingPublicView | JobPostingUnlockedView,
+): view is JobPostingUnlockedView {
   return "companyName" in view;
+}
+
+function ContactCard({
+  jobPosting,
+}: {
+  jobPosting: JobPostingUnlockedView;
+}): JSX.Element {
+  const { email, phone, applicationUrl } = jobPosting.contactInfo;
+  return (
+    <div className="card stack" id="contato">
+      <div className="cluster">
+        <span className="icon-tile">
+          <LockOpen aria-hidden="true" />
+        </span>
+        <div>
+          <p className="eyebrow" style={{ color: "var(--color-success)" }}>
+            Vaga desbloqueada
+          </p>
+          <h2 className="card-title" style={{ margin: 0 }}>
+            {jobPosting.companyName}
+          </h2>
+        </div>
+      </div>
+      <div className="contact-actions">
+        {phone && (
+          <a
+            className="btn btn-primary btn-block"
+            href={`tel:${phone.replace(/[^\d+]/g, "")}`}
+          >
+            <Phone aria-hidden="true" />
+            Ligar: {phone}
+          </a>
+        )}
+        {email && (
+          <a
+            className="btn btn-secondary btn-block break-anywhere"
+            href={`mailto:${email}`}
+          >
+            <Mail aria-hidden="true" />
+            {email}
+          </a>
+        )}
+        {applicationUrl && (
+          <a
+            className="btn btn-secondary btn-block"
+            href={applicationUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <ExternalLink aria-hidden="true" />
+            Candidatar-se pelo site
+          </a>
+        )}
+      </div>
+      <p className="text-xs text-muted">
+        Diga que encontrou a vaga no Eteron Hub. Nunca pague taxas para participar de
+        processos seletivos.
+      </p>
+    </div>
+  );
 }
 
 export default function JobPostingDetailPage(): JSX.Element {
   const { id } = useParams<{ id: string }>();
   const { token, payload, isLoading: authLoading } = useAuth();
-  const [jobPosting, setJobPosting] = useState<JobPostingPublicView | JobPostingUnlockedView | null>(null);
+  const [jobPosting, setJobPosting] = useState<
+    JobPostingPublicView | JobPostingUnlockedView | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
@@ -40,7 +120,8 @@ export default function JobPostingDetailPage(): JSX.Element {
         if (!cancelled) setJobPosting(result);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof ApiRequestError ? err.message : "Vaga não encontrada");
+        if (!cancelled)
+          setError(err instanceof ApiRequestError ? err.message : "Vaga não encontrada");
       });
 
     return () => {
@@ -56,74 +137,184 @@ export default function JobPostingDetailPage(): JSX.Element {
       await unlockJobPosting(token, id);
       setReloadCount((count) => count + 1);
     } catch (err) {
-      setUnlockError(err instanceof ApiRequestError ? err.message : "Não foi possível desbloquear a vaga");
+      setUnlockError(
+        err instanceof ApiRequestError
+          ? err.message
+          : "Não foi possível desbloquear a vaga",
+      );
     } finally {
       setUnlocking(false);
     }
   }
 
   if (error) {
-    return <p className="error-message">{error}</p>;
+    return (
+      <div className="container page">
+        <EmptyState
+          icon={SearchX}
+          title="Vaga indisponível"
+          description={`${error}. Ela pode ter sido encerrada ou expirado.`}
+          action={
+            <Link href="/vagas" className="btn btn-primary">
+              Ver outras vagas
+            </Link>
+          }
+        />
+      </div>
+    );
   }
 
   if (!jobPosting) {
-    return <p className="text-muted">Carregando...</p>;
+    return <PageLoading label="Carregando vaga..." />;
   }
 
   const unlocked = isUnlocked(jobPosting);
+  const isWorker = payload?.role === "WORKER";
+  const unlockLabel = unlocking
+    ? "Desbloqueando..."
+    : `Desbloquear por ${jobPosting.unlockCost} créditos`;
+
+  const unlockCard = (
+    <div className="card stack" id="desbloquear">
+      <div className="cluster">
+        <span className="icon-tile">
+          <LockKeyhole aria-hidden="true" />
+        </span>
+        <div>
+          <p className="eyebrow">Empresa oculta</p>
+          <h2 className="card-title" style={{ margin: 0 }}>
+            Veja quem está contratando
+          </h2>
+        </div>
+      </div>
+      <div className="locked-preview" aria-hidden="true">
+        <span className="locked-line" style={{ width: "70%" }} />
+        <span className="locked-line" style={{ width: "50%" }} />
+        <span className="locked-line" style={{ width: "60%" }} />
+      </div>
+      <p className="text-sm text-muted">
+        Desbloqueie por <strong>{jobPosting.unlockCost} créditos</strong> para ver o nome
+        da empresa, telefone, e-mail e link de candidatura.
+      </p>
+      {unlockError && (
+        <Alert tone="error">
+          {unlockError} <Link href="/painel/creditos">Comprar créditos</Link>
+        </Alert>
+      )}
+      {isWorker ? (
+        <>
+          <button
+            className="btn btn-primary btn-lg btn-block"
+            onClick={handleUnlock}
+            disabled={unlocking}
+          >
+            {unlocking ? <Spinner /> : <LockOpen aria-hidden="true" />}
+            {unlockLabel}
+          </button>
+          <Link href="/painel/creditos" className="btn btn-ghost btn-block">
+            <Wallet aria-hidden="true" />
+            Comprar créditos
+          </Link>
+        </>
+      ) : (
+        <>
+          <Link href="/login" className="btn btn-primary btn-lg btn-block">
+            Entrar como trabalhador
+          </Link>
+          <Link href="/cadastro/trabalhador" className="btn btn-secondary btn-block">
+            Criar conta
+          </Link>
+        </>
+      )}
+    </div>
+  );
 
   return (
-    <div className="stack">
-      <div className="card">
-        <h1>{jobPosting.title}</h1>
-        {unlocked && <p className="text-muted">{jobPosting.companyName}</p>}
-        <p className="text-muted">{jobPosting.location}</p>
-        <p>
-          {formatBRL(jobPosting.salaryRangeCents.min)} - {formatBRL(jobPosting.salaryRangeCents.max)}
-        </p>
+    <div className="container page">
+      <Link
+        href="/vagas"
+        className="btn btn-ghost btn-sm"
+        style={{ marginBottom: "var(--space-4)", marginLeft: -12 }}
+      >
+        <ArrowLeft aria-hidden="true" />
+        Todas as vagas
+      </Link>
 
-        <h3 className="card-title">Descrição</h3>
-        <p>{jobPosting.description}</p>
-
-        <h3 className="card-title">Requisitos</h3>
-        <p>{jobPosting.requirements}</p>
-
-        {unlocked && (
-          <>
-            <h3 className="card-title">Contato</h3>
-            <ul>
-              {jobPosting.contactInfo.email && <li>E-mail: {jobPosting.contactInfo.email}</li>}
-              {jobPosting.contactInfo.phone && <li>Telefone: {jobPosting.contactInfo.phone}</li>}
-              {jobPosting.contactInfo.applicationUrl && (
-                <li>
-                  Link para aplicação:{" "}
-                  <a href={jobPosting.contactInfo.applicationUrl} target="_blank" rel="noreferrer">
-                    {jobPosting.contactInfo.applicationUrl}
-                  </a>
-                </li>
+      <div className="with-sidebar">
+        <article className="card stack-lg">
+          <header className="job-detail-header">
+            <div className="cluster">
+              {unlocked ? (
+                <span className="badge badge-success">Desbloqueada</span>
+              ) : (
+                <span className="chip">
+                  <LockKeyhole aria-hidden="true" />
+                  Empresa oculta
+                </span>
               )}
-            </ul>
-          </>
-        )}
+            </div>
+            <h1 className="break-anywhere">{jobPosting.title}</h1>
+            <div className="meta-row">
+              {unlocked && (
+                <span>
+                  <Building2 aria-hidden="true" />
+                  {jobPosting.companyName}
+                </span>
+              )}
+              <span>
+                <MapPin aria-hidden="true" />
+                {jobPosting.location}
+              </span>
+              {jobPosting.publishedAt && (
+                <span>
+                  <CalendarClock aria-hidden="true" />
+                  Publicada em {formatDate(jobPosting.publishedAt)}
+                </span>
+              )}
+            </div>
+            <div className="salary-block">
+              <span className="text-xs text-muted">Faixa salarial</span>
+              <strong>{formatSalaryRange(jobPosting.salaryRangeCents)}</strong>
+            </div>
+          </header>
+
+          <section className="prose">
+            <h2>Descrição</h2>
+            <p className="pre-line">{jobPosting.description}</p>
+          </section>
+
+          <section className="prose">
+            <h2>Requisitos</h2>
+            <p className="pre-line">{jobPosting.requirements}</p>
+          </section>
+        </article>
+
+        <aside className="stack">
+          {unlocked ? <ContactCard jobPosting={jobPosting} /> : unlockCard}
+        </aside>
       </div>
 
       {!unlocked && (
-        <div className="card">
-          <h3 className="card-title">Desbloquear vaga</h3>
-          <p className="text-muted">
-            Veja o nome da empresa e o contato desbloqueando esta vaga por {jobPosting.unlockCost} créditos.
-          </p>
-          {payload?.role === "WORKER" ? (
-            <>
-              {unlockError && <p className="error-message">{unlockError}</p>}
-              <button className="button" onClick={handleUnlock} disabled={unlocking}>
-                {unlocking ? "Desbloqueando..." : `Desbloquear por ${jobPosting.unlockCost} créditos`}
-              </button>
-            </>
-          ) : (
-            <p className="text-muted">
-              <Link href="/login">Entre como trabalhador</Link> para desbloquear esta vaga.
+        <div className="mobile-action-bar" style={{ marginTop: "var(--space-6)" }}>
+          <div>
+            <p className="text-xs" style={{ color: "var(--steel-300)" }}>
+              Contato da empresa
             </p>
+            <p style={{ fontWeight: 700 }}>{jobPosting.unlockCost} créditos</p>
+          </div>
+          {isWorker ? (
+            <button
+              className="btn btn-primary"
+              onClick={handleUnlock}
+              disabled={unlocking}
+            >
+              {unlocking ? <Spinner /> : <LockOpen aria-hidden="true" />}
+              Desbloquear
+            </button>
+          ) : (
+            <Link href="/login" className="btn btn-primary">
+              Entrar
+            </Link>
           )}
         </div>
       )}

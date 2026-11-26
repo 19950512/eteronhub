@@ -1,7 +1,16 @@
 "use client";
 
+import { Building2, HardHat, RotateCcw, Ban } from "lucide-react";
 import { useState } from "react";
-import { reactivateCompany, reactivateWorker, suspendCompany, suspendWorker } from "../../../lib/api/admin";
+import { Alert } from "../../../components/ui/alert";
+import { Field } from "../../../components/ui/field";
+import { PageHeader } from "../../../components/ui/page-header";
+import {
+  reactivateCompany,
+  reactivateWorker,
+  suspendCompany,
+  suspendWorker,
+} from "../../../lib/api/admin";
 import { ApiRequestError } from "../../../lib/api/client";
 import { useAuth } from "../../../lib/auth/auth-context";
 import { RequireRole } from "../../../lib/auth/require-role";
@@ -15,7 +24,10 @@ function AccountActionCard({ kind }: { kind: AccountKind }): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function run(action: (token: string, id: string) => Promise<void>, successMessage: string): Promise<void> {
+  async function run(
+    action: (token: string, id: string) => Promise<void>,
+    successMessage: string,
+  ): Promise<void> {
     if (!token || !id) return;
     setBusy(true);
     setError(null);
@@ -24,7 +36,9 @@ function AccountActionCard({ kind }: { kind: AccountKind }): JSX.Element {
       await action(token, id);
       setMessage(successMessage);
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : "Não foi possível concluir a ação");
+      setError(
+        err instanceof ApiRequestError ? err.message : "Não foi possível concluir a ação",
+      );
     } finally {
       setBusy(false);
     }
@@ -34,46 +48,66 @@ function AccountActionCard({ kind }: { kind: AccountKind }): JSX.Element {
   const article = kind === "COMPANY" ? "da" : "do";
   const suspend = kind === "COMPANY" ? suspendCompany : suspendWorker;
   const reactivate = kind === "COMPANY" ? reactivateCompany : reactivateWorker;
+  const Icon = kind === "COMPANY" ? Building2 : HardHat;
 
   return (
-    <div className="card">
-      <h3 className="card-title">Suspender/reativar {label}</h3>
-      <div className="form-field">
-        <label htmlFor={`${kind}-id`}>
-          ID {article} {label}
-        </label>
-        <input id={`${kind}-id`} value={id} onChange={(e) => setId(e.target.value)} />
+    <section className="card stack" aria-labelledby={`${kind}-title`}>
+      <div className="cluster">
+        <span className="icon-tile">
+          <Icon aria-hidden="true" />
+        </span>
+        <h2 id={`${kind}-title`} className="card-title" style={{ margin: 0 }}>
+          {kind === "COMPANY" ? "Empresas" : "Trabalhadores"}
+        </h2>
       </div>
+      <Field id={`${kind}-id`} label={`ID ${article} ${label}`}>
+        <input
+          id={`${kind}-id`}
+          autoComplete="off"
+          spellCheck={false}
+          style={{ fontFamily: "var(--font-mono)" }}
+          value={id}
+          onChange={(e) => setId(e.target.value)}
+        />
+      </Field>
 
-      {message && <p className="success-message">{message}</p>}
-      {error && <p className="error-message">{error}</p>}
+      {message && <Alert tone="success">{message}</Alert>}
+      {error && <Alert tone="error">{error}</Alert>}
 
-      <div className="button-row">
-        <button className="button button-danger" disabled={busy || !id} onClick={() => run(suspend, `${label} suspensa(o)`)}>
+      <div className="cluster">
+        <button
+          className="btn btn-danger"
+          disabled={busy || !id}
+          onClick={() => run(suspend, `${label} suspensa(o)`)}
+        >
+          <Ban aria-hidden="true" />
           Suspender
         </button>
         <button
-          className="button button-secondary"
+          className="btn btn-secondary"
           disabled={busy || !id}
           onClick={() => run(reactivate, `${label} reativada(o)`)}
         >
+          <RotateCcw aria-hidden="true" />
           Reativar
         </button>
       </div>
-    </div>
+    </section>
   );
 }
 
 function AccountManagement(): JSX.Element {
   return (
-    <div className="stack">
-      <h1>Contas</h1>
-      <p className="text-muted">
-        Cole o ID retornado no cadastro (ou visto no painel da empresa/trabalhador) para suspender ou reativar uma
-        conta.
-      </p>
-      <AccountActionCard kind="COMPANY" />
-      <AccountActionCard kind="WORKER" />
+    <div className="container page">
+      <PageHeader
+        eyebrow="Administração"
+        title="Contas"
+        description="Cole o ID retornado no cadastro (ou visto no painel da empresa/trabalhador) para suspender ou reativar uma conta."
+      />
+      <div className="grid-2">
+        <AccountActionCard kind="COMPANY" />
+        <AccountActionCard kind="WORKER" />
+      </div>
     </div>
   );
 }

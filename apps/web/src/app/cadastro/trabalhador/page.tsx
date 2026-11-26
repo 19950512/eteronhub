@@ -1,7 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { marketImages } from "../../../assets/images";
+import { AuthShell } from "../../../components/auth/auth-shell";
+import { Alert } from "../../../components/ui/alert";
+import { Field } from "../../../components/ui/field";
+import { Spinner } from "../../../components/ui/spinner";
 import { registerWorker } from "../../../lib/api/auth";
 import { ApiRequestError } from "../../../lib/api/client";
 
@@ -19,52 +25,97 @@ export default function RegisterWorkerPage(): JSX.Element {
       await registerWorker(form);
       router.push("/login?cadastro=trabalhador");
     } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : "Não foi possível cadastrar o trabalhador");
+      setError(
+        err instanceof ApiRequestError
+          ? err.message
+          : "Não foi possível cadastrar o trabalhador",
+      );
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="card" style={{ maxWidth: 480, margin: "0 auto" }}>
-      <h1>Cadastro de trabalhador</h1>
-      <form onSubmit={handleSubmit}>
-        <div className="form-field">
-          <label htmlFor="cpf">CPF</label>
-          <input id="cpf" required value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} />
-        </div>
-        <div className="form-field">
-          <label htmlFor="nome">Nome</label>
-          <input id="nome" required value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
-        </div>
-        <div className="form-field">
-          <label htmlFor="email">E-mail</label>
+    <AuthShell
+      image={marketImages.grindingSparks}
+      headline="Sua próxima obra começa aqui."
+      description="Vagas de soldagem, caldeiraria, montagem e estruturas metálicas, com salário à vista e contato direto com a empresa."
+      highlights={[
+        "Busque vagas sem precisar de cadastro",
+        "Créditos via Pix",
+        "Contato direto com quem contrata",
+      ]}
+    >
+      <div className="auth-card-header">
+        <span className="eyebrow">Para trabalhadores</span>
+        <h1>Crie sua conta</h1>
+        <p className="text-muted">
+          Com a conta você compra créditos e desbloqueia o contato das empresas.
+        </p>
+      </div>
+      <form className="form" onSubmit={handleSubmit}>
+        <Field id="nome" label="Nome completo">
+          <input
+            id="nome"
+            autoComplete="name"
+            required
+            value={form.nome}
+            onChange={(e) => setForm({ ...form, nome: e.target.value })}
+          />
+        </Field>
+        <Field id="cpf" label="CPF">
+          <input
+            id="cpf"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="000.000.000-00"
+            required
+            value={form.cpf}
+            onChange={(e) => setForm({ ...form, cpf: e.target.value })}
+          />
+        </Field>
+        <Field id="email" label="E-mail">
           <input
             id="email"
             type="email"
+            inputMode="email"
+            autoComplete="email"
             required
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
           />
-        </div>
-        <div className="form-field">
-          <label htmlFor="password">Senha</label>
+        </Field>
+        <Field id="password" label="Senha" hint="Mínimo de 8 caracteres">
           <input
             id="password"
             type="password"
+            autoComplete="new-password"
+            aria-describedby="password-hint"
             minLength={8}
             required
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
           />
-        </div>
+        </Field>
 
-        {error && <p className="error-message">{error}</p>}
+        {error && <Alert tone="error">{error}</Alert>}
 
-        <button className="button" type="submit" disabled={submitting}>
-          {submitting ? "Cadastrando..." : "Cadastrar"}
+        <button
+          className="btn btn-primary btn-lg btn-block"
+          type="submit"
+          disabled={submitting}
+        >
+          {submitting && <Spinner />}
+          {submitting ? "Cadastrando..." : "Criar minha conta"}
         </button>
+        <p className="text-xs text-muted text-center">
+          Ao se cadastrar, você concorda com a nossa{" "}
+          <Link href="/politica-de-privacidade">Política de Privacidade</Link>.
+        </p>
       </form>
-    </div>
+      <p className="text-sm text-muted text-center">
+        Já tem conta? <Link href="/login">Entrar</Link>
+      </p>
+    </AuthShell>
   );
 }
